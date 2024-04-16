@@ -1155,8 +1155,7 @@ class QuantumAPolynomial:
 
 
 
-    def get_A_polynomial_using_basis(basis_matrix,gens_dict,print_steps=True):
-        #TODO - this takes a lot of ambient parameters.
+    def get_A_polynomial_using_basis(M,basis_matrix,gens_dict,print_steps=True):
         generic_crossing_relation = [ # this equals 1.
             {'qrt2':1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
             {'qrt2':-1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
