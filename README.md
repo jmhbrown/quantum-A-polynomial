@@ -12,6 +12,10 @@ sage -pip install --upgrade --user snappy
 Usage
 -----
 
+Use `sage wrapper.sage` to run the computations from the command line. More usage details can be had using `sage wrapper.sage -h`.
+
+See `example_input.json` for an example on how to configure the runs.
+
 To launch the notebooks run the command `jupyter-notebook` in the root directory of this project.
 
 This project uses the [Intitialization cells extension](https://jupyter-contrib-nbextensions.readthedocs.io/en/latest/nbextensions/init_cell/README.html), so that some cells run automatically when you open the notebook. If the initialization cells are not indicated (in the upper right corner of each cell) when you open the notebook, you might need to change the default view in `View > Cell Toolbar > Initialization Cell`. To re-run initialization cells, click the little calculator icon in the header. 

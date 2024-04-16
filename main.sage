@@ -1145,7 +1145,10 @@ class QuantumAPolynomial:
             
         logger.info("Relations:\n"+str(crossing_relations))
         A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-M.num_tetrahedra()+1:]]).gens()[0]
-        logger.info("A-polynomial:\n"+str(A_poly_candidate.factor()))
+        if A_poly_candidate == 0:
+            logger.warn("We have 0 for the A-polynomial!")
+        else:
+            logger.info("A-polynomial:\n"+str(A_poly_candidate.factor()))
 
 
 
