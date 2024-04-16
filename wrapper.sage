@@ -31,4 +31,12 @@ formatter = logging.Formatter('%(levelname)s - %(message)s')
 consoleHandler.setFormatter(formatter)
 logger.addHandler(consoleHandler)
 
+sage.repl.load.load('main.sage',globals())
+
+for run in options["runs"]:
+    logger.info("Running: {}".format(run))
+
+    t = QuantumAPolynomial(run['knot'],run['pachner_moves'])
+
+    t.compute_skein_module()
 
