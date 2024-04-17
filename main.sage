@@ -9,6 +9,11 @@ class QuantumAPolynomial:
         self.knot = knot
         self.pachner_moves = pachner_moves
 
+        self.longitude = None
+        self.meridian = None
+        self.gens_dict = None
+        self.relations = None
+
         # Define q and some of its roots.
         q = var('q')
         qrt2 = var('qrt2')
@@ -590,6 +595,98 @@ class QuantumAPolynomial:
             return QuantumAPolynomial.lattice_coord_to_dict(weight_coord,vertices_dict)
 
 
+    def get_end_point_from_names(monomial,gens_dict,weights_matrix,vertices_dict):
+        """
+        Finds all the negative weight vertices of a monomial 
+
+        Parameters:
+        monomial dict - specifics a monomial in the quantum torus.
+        gens_dict dict - translates between generator names and cooridnates
+        weights_matrix matrix - gives the T-weights of generators
+        vertices_dict dict - gives the vertice coordinates.
+        
+        Returns:
+        list of strings - the vertices where this monomial has negative weight.
+
+        """
+
+        weights = QuantumAPolynomial.get_weights_from_names(monomial,gens_dict,weights_matrix,vertices_dict,weight_format='dict')
+        end_points = [v for v,k in weights.items() if k < 0]
+        if len(end_points) != 1:
+            logger.warning("{0} has more or less than one end-point!".format(monomial))
+        return end_points 
+
+    def weight_at_vertex(vertex,monomial,gens_dict,weights_matrix,vertices_dict):
+        """
+        gets the weight of a specified monomial at a specified vertex.
+        """
+
+        weights = QuantumAPolynomial.get_weights_from_names(monomial,gens_dict,weights_matrix,vertices_dict,weight_format='dict')
+        #logger.debug("weights for {2} at {0}: {1}".format(vertex,weights.get(vertex,0),monomial))
+        return weights.get(vertex,0)
+
+
+    def find_gen_with_certain_endpoint(vertex,monomial,gens_dict,weights_matrix,vertices_dict):
+        candidates_in_monomial = {
+                k:v for k,v in monomial.items() 
+                if QuantumAPolynomial.weight_at_vertex(vertex,{k:v}, gens_dict,weights_matrix,vertices_dict) >= 1
+                }
+        #logger.debug('candidates in monomial: {}'.format(candidates_in_monomial))
+        
+        return candidates_in_monomial
+
+    def order_curve(curve,gens_dict,weights_matrix,vertices_dict,relations):
+        """
+        Takes the normal-order version of an oriented curve and returns the product of the generators in the order that they're encountered as we travel along the curve. Makes an arbitrary choice of starting point."""
+
+        # make a copy since we do descructive actions:
+        unordered_curve = curve.copy()
+
+        tmp_first = unordered_curve.popitem()
+        next_gen = {tmp_first[0]:tmp_first[1]}
+        
+        ordered_curve = []
+        ordered_curve.append(next_gen)
+
+        while unordered_curve != {}:
+            leftover_gen = {}
+            next_vertex = QuantumAPolynomial.get_end_point_from_names(next_gen,gens_dict,weights_matrix,vertices_dict)[0]
+            next_gen = QuantumAPolynomial.find_gen_with_certain_endpoint(next_vertex,unordered_curve,gens_dict,weights_matrix,vertices_dict)
+            
+            if len(next_gen) > 1:
+                # We have more than one option for the next generator! Just remove one and stick it back in unordered_curve.
+                #logger.debug("More than one option for the next generator!")
+                tmp_leftover_gen = next_gen.popitem()
+                leftover_gen.update({tmp_leftover_gen[0]:tmp_leftover_gen[1]})
+                # unused - this version picks the other direction.
+                #tmp_next_gen = next_gen.popitem()
+                #leftover_gen.update(next_gen)
+                #next_gen = {tmp_next_gen[0]:tmp_next_gen[1]}
+            if next_gen == {}:
+                # we didn't find a candidate! This (hopefully!) means that we've completed an ordered curve and need to restart
+                #logger.debug("We don't have a candidate for the next generator!")
+                tmp_next_gen = unordered_curve.popitem()
+                next_gen = {tmp_next_gen[0]:tmp_next_gen[1]}
+                # re-add our new start since we remove it at the very end.
+                unordered_curve.update(next_gen)
+            if list(next_gen.values())[0] > 1:
+                # This generator shows up more than once!
+                # We only want to move one copy of it from unordered_curve to ordered_curve.
+                #logger.debug("This generator shows up more than once!")
+                leftover_gen.update({k:v-sign(v) for k,v in next_gen.items() if v-sign(v) != 0})
+                next_gen = {k:sign(v) for k,v in next_gen.items()}
+            
+            ordered_curve.append(next_gen)
+            if unordered_curve == {}:
+                break
+            else:
+                unordered_curve.pop(list(next_gen.keys())[0])
+                unordered_curve.update(leftover_gen)
+
+        return QuantumAPolynomial.product_from_names(*ordered_curve,relations=relations,gens_dict=gens_dict)
+
+
+
 
 
     # ## Peripheral Curves
@@ -598,7 +695,6 @@ class QuantumAPolynomial:
         """
         Turns the peripheral curve data from SnapPy into a dictionary,
         The values are the intersection number of the peripheral curve with the given edge.
-        A positive intersection number means the curve is going into the short-edge triangle.
         
         Parameters:
         M snappy.Triangulation - the triangulation of a knot complement.
@@ -611,14 +707,17 @@ class QuantumAPolynomial:
         data_start = {'meridian':0, 'longitude':2}
         
         curve_data = [all_periph_data[i] for i in range(data_start[curve],len(all_periph_data), 4)]
-        logger.debug('curve_data for {0}: {1}'.format(curve,str(curve_data)))
-        return {'a{0}{1}{2}'.format(t,v,f):curve_data[t][4*v+f]
+        curve_dict = {'a{0}{1}{2}'.format(t,v,f):curve_data[t][4*v+f]
                 for t in range(M.num_tetrahedra())
                 for v in range(4)
                 for f in range(4)
                 if 0 != curve_data[t][4*v+f]
             }
-        
+        logger.debug('intersection data for {0}: {1}'.format(curve,str(curve_dict)))
+
+        return curve_dict 
+
+
     def get_thread_going_to_vertex(vertex_name,gens_dict):
         """
         Returns the thread with weight -1 at the given vertex.
@@ -660,7 +759,7 @@ class QuantumAPolynomial:
             QuantumAPolynomial.get_thread_going_to_vertex(v,gens_dict) : weight for v,weight in vertices_for_positive_crossings.items()
         })
         
-        logger.debug("Threads in the {curve}: {threads}".format(curve=curve,threads=peripheral_curve_threads))
+        #logger.debug("Threads in the {curve}: {threads}".format(curve=curve,threads=peripheral_curve_threads))
         #### Now we need to fill in the gaps with short edges.
         # Make a dictionary of all the short edges we'll need to include.
         peripheral_curve_short_edges = {}
@@ -675,19 +774,21 @@ class QuantumAPolynomial:
                     k:v for k,v in peripheral_curve_thread_weights.items() if k[:-1] == 'v{0}{1}'.format(tet,vertex)
                 }
                 if not this_triangle_weights == dict(): # if there's weight zero move on.
-                    logger.debug("Face {vertex} of Tetrahedra {tet} has non-zero weight: {weights}".format(tet=tet,vertex=vertex,weights=this_triangle_weights))
+                    #logger.debug("Face {vertex} of Tetrahedra {tet} has non-zero weight: {weights}".format(tet=tet,vertex=vertex,weights=this_triangle_weights))
                     local_short_edge_weights = {short_edge : weights_dict[short_edge] for short_edge in gens_dict.keys() if short_edge[:-1] == 'a{0}{1}'.format(tet,vertex)}
                     for short_edge,se_weights in local_short_edge_weights.items():
                         if set(se_weights.keys()) == set(this_triangle_weights.keys()):
                             a_vertex = list(se_weights.keys())[0]
                             short_edge_power = -se_weights[a_vertex]*this_triangle_weights[a_vertex]
-                            logger.debug("Adding {short_edge}^{power} to the curve.".format(short_edge=short_edge,power=short_edge_power))
+                            #logger.debug("Adding {short_edge}^{power} to the curve.".format(short_edge=short_edge,power=short_edge_power))
                             old_short_edge_weight = peripheral_curve_short_edges.get(short_edge,0)
                             peripheral_curve_short_edges.update({short_edge:old_short_edge_weight+short_edge_power})
 
 
         curve_dict = (peripheral_curve_threads | peripheral_curve_short_edges)
         curve_weights = QuantumAPolynomial.lattice_coord_to_dict(QuantumAPolynomial.get_weights_from_names(curve_dict,gens_dict,weights_matrix,vertices_dict),vertices_dict)
+        logger.debug("{0}: {1}".format(curve,curve_dict))
+
         if curve_weights != dict():
             logger.error("Curve has non-zero T-weights! {weights}".format(weights=curve_weights))
         return curve_dict
@@ -949,23 +1050,23 @@ class QuantumAPolynomial:
             omega_thread_thread = thread_relations[:,18*num_tet+1:]
 
             if not thread_relations[:,18*num_tet+1:].is_skew_symmetric():
-                logger.warn("The thread relations are not skew-symmetric!")
+                logger.warning("The thread relations are not skew-symmetric!")
 
 
         omega_with_q = QuantumAPolynomial.get_relations_matrix(M,gens_dict,weights_dict)
         if not omega_with_q.is_skew_symmetric():
-            logger.warn("Our relations matrix is not skew symmetric!")
+            logger.warning("Our relations matrix is not skew symmetric!")
 
         kernel_41 = omega_with_q.kernel().basis()
 
 
         # checking that the keys are in the same order.
         if list(weights_dict.keys()) != list(gens_dict.keys())[1:]:
-            logger.warn("The weights_dict and gens_dict have different key orders! This will probably cause trouble.")
+            logger.warning("The weights_dict and gens_dict have different key orders! This will probably cause trouble.")
         if not omega_with_q.is_skew_symmetric():
-            logger.warn("The relations matrix is not skew symmetric!")
+            logger.warning("The relations matrix is not skew symmetric!")
 
-        logger.debug("Rank of the center: {0}".format(omega_with_q.right_kernel_matrix().rank() ) )
+        #logger.debug("Rank of the center: {0}".format(omega_with_q.right_kernel_matrix().rank() ) )
 
 
 
@@ -975,9 +1076,19 @@ class QuantumAPolynomial:
         invariant_sublattice = weights_matrix.left_kernel()
 
 
+        ### Get the meridian and longitude
 
         meridian = QuantumAPolynomial.get_peripheral_curve_monomial(M,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='meridian')
+        ordered_meridian =QuantumAPolynomial.order_curve(meridian,gens_dict,weights_matrix,vertices_dict,omega_with_q)
+        logger.debug("ordered vs unordered: {}".format(QuantumAPolynomial.names_to_lattice_coordinate(meridian,gens_dict) - ordered_meridian))
+
+        __self__.meridian = meridian
+
         longitude = QuantumAPolynomial.get_peripheral_curve_monomial(M,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='longitude')
+        ordered_longitude = QuantumAPolynomial.order_curve(longitude,gens_dict,weights_matrix,vertices_dict,omega_with_q)
+        logger.debug("ordered vs unordered: {}".format(QuantumAPolynomial.names_to_lattice_coordinate(longitude,gens_dict) - ordered_longitude))
+        __self__.longitude = longitude
+
 
         logger.debug("Commutation relations: M*L = q^({0})L*M".format((matrix(QuantumAPolynomial.names_to_lattice_coordinate(meridian,gens_dict))*omega_with_q*matrix(QuantumAPolynomial.names_to_lattice_coordinate(longitude,gens_dict)).transpose())[0,0]/4))
 
@@ -1046,7 +1157,14 @@ class QuantumAPolynomial:
             pi(gens_dict['qrt2']), pi(QuantumAPolynomial.names_to_lattice_coordinate(meridian,gens_dict)),
             pi(QuantumAPolynomial.names_to_lattice_coordinate(longitude,gens_dict))
             ])
+        ordered_T_region_basis = matrix([
+            pi(gens_dict['qrt2']), pi(ordered_meridian),
+            pi(ordered_longitude)
+            ])
         logger.debug("T_region_basis:\n{0}".format(T_region_basis))
+        logger.debug("ordered_T_region_basis:\n{0}".format(ordered_T_region_basis))
+        ## TRY USING THE ORDERED VERSION:
+        T_region_basis = ordered_T_region_basis
         T_region_minor_indexes = [(i,j,k)
                 for i in range(T_region_basis.ncols())
                 for j in range(i+1,T_region_basis.ncols())
@@ -1056,7 +1174,7 @@ class QuantumAPolynomial:
         minors = T_region_basis.minors(3)
         non_zero_minors = {}
         logger.debug("minors: {0}".format(minors))
-        #TODO: What if we have not minors == 1? i.e. only -1.
+        #TODO: What does it mean for us to need a negative minor?.
         for i in range(len(minors)):
             if minors[i] == 1 or minors[i] == -1: # we only need one minor
                 non_zero_rows = set(range(T_region_basis.ncols()))-set(T_region_minor_indexes[i])
@@ -1153,7 +1271,7 @@ class QuantumAPolynomial:
         logger.info("Relations:\n"+str(crossing_relations))
         A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-M.num_tetrahedra()+1:]]).gens()[0]
         if A_poly_candidate == 0:
-            logger.warn("We have 0 for the A-polynomial!")
+            logger.warning("We have 0 for the A-polynomial!")
         else:
             logger.info("A-polynomial:\n"+str(A_poly_candidate.factor()))
 
