@@ -605,7 +605,7 @@ class QuantumAPolynomial:
         curve string - either 'meridian' or 'longitude'
         
         Returns:
-        dict - of the form {'short_edge': weight}. I'm not sure yet what the weights mean.
+        dict - of the form {'short_edge': weight}.
         """
         all_periph_data = M._get_cusp_indices_and_peripheral_curve_data()[1]
         data_start = {'meridian':0, 'longitude':2}
@@ -628,7 +628,7 @@ class QuantumAPolynomial:
         assert len(threads_list) == 1
         return threads_list[0]
 
-    def get_peripheral_curve_monomial(M,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='meridian',log_level='normal'):
+    def get_peripheral_curve_monomial(M,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='meridian'):
         """
         Gets an expression for the peripheral curve of the triangulation in terms of generators.
         There are multiple correct answers. We find this one based on SnapPy's suggestion.
@@ -641,6 +641,9 @@ class QuantumAPolynomial:
         weights_matrix Matrix - the matrix of weights for generators
         
         curve string - either 'meridian' or 'longitude'
+
+        returns:
+        dict - the lattice representation of the curve.
         """
         
         
@@ -923,7 +926,7 @@ class QuantumAPolynomial:
             })
 
         # are there self gluings?
-        if logger.level > 10:
+        if logger.level <= 10:
             tet_gluings = {k:v for k,v in QuantumAPolynomial.get_gluing_dict(M).items() if k[0] == 'r'}
             for k,v in tet_gluings.items():
                 this_tet = int(k[1:])
@@ -938,17 +941,20 @@ class QuantumAPolynomial:
 
 
 
-        #checks
-        thread_relations = QuantumAPolynomial.get_thread_relations(gens_dict,weights_dict)
-        # split the thread relations into two parts, to help construct the full relations matrix.
-        omega_thread_non_thread = thread_relations[:,1:18*num_tet+1]
-        omega_thread_thread = thread_relations[:,18*num_tet+1:]
+        # check that the thread relations are skew symmetric
+        if logger.level <= 30:
+            thread_relations = QuantumAPolynomial.get_thread_relations(gens_dict,weights_dict)
+            # split the thread relations into two parts, to help construct the full relations matrix.
+            omega_thread_non_thread = thread_relations[:,1:18*num_tet+1]
+            omega_thread_thread = thread_relations[:,18*num_tet+1:]
 
-        if not thread_relations[:,18*num_tet+1:].is_skew_symmetric():
-            logger.warn("The thread relations are not skew-symmetric!")
+            if not thread_relations[:,18*num_tet+1:].is_skew_symmetric():
+                logger.warn("The thread relations are not skew-symmetric!")
 
 
         omega_with_q = QuantumAPolynomial.get_relations_matrix(M,gens_dict,weights_dict)
+        if not omega_with_q.is_skew_symmetric():
+            logger.warn("Our relations matrix is not skew symmetric!")
 
         kernel_41 = omega_with_q.kernel().basis()
 
@@ -978,7 +984,7 @@ class QuantumAPolynomial:
 
 
         T_monodromy_variable_names_list = QuantumAPolynomial.get_T_monodromy_list(M,gens_dict)
-        logger.debug("T_monodramy_variable_names_list:{}".format(T_monodromy_variable_names_list))
+        logger.debug("T_monodromy_variable_names_list:{}".format(T_monodromy_variable_names_list))
         T_monodromy_lattice_coordinate_list = [
             QuantumAPolynomial.names_to_lattice_coordinate(v,gens_dict) for v in T_monodromy_variable_names_list
         ]
@@ -991,6 +997,7 @@ class QuantumAPolynomial:
 
         long_edge_gluing_relations_list = QuantumAPolynomial.get_long_edge_gluing_relations_list(M,gens_dict)
         logger.debug("long_edge_gluing_relations_list:\n"+"\n".join([str(relation) for relation in long_edge_gluing_relations_list]))
+
         # Check that all relations are T-invariant, and incidentally that we've listed actual threads.
         for constraint in long_edge_gluing_relations_list:
             lat_coord = QuantumAPolynomial.names_to_lattice_coordinate(constraint,gens_dict)
@@ -1069,7 +1076,7 @@ class QuantumAPolynomial:
         quotient_basis = block_matrix([[T_region_basis],[new_rows]]).transpose()
         logger.debug("quotient basis:\n{0}".format(quotient_basis))
 
-        if logger.level > 10:
+        if logger.level <= 10:
             non_long_edge_generators = list(filter(lambda gen : gen[0] != 'A',gens_dict.keys()))
             non_long_edge_lattice = Matrix([gens_dict[gen] for gen in non_long_edge_generators]).row_module().intersection(invariant_sublattice)
             T_region_quotient_lattice = non_long_edge_lattice.quotient(
@@ -1185,3 +1192,4 @@ class QuantumAPolynomial:
         
     #A = QuantumAPolynomial.get_A_polynomial_using_basis(test_basis,gens_dict)
 
+# TODO: Check that the relations I quotient by are in the complement of the invariant lattice. This is what I need in order for the commutation relations to descend to the quotient lattice.

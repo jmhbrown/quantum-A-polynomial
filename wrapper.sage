@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 sage.repl.load.load('main.sage',globals())
 
 for run in options["runs"]:
+    logger.info("\n\n")
     logger.info("Running: {}".format(run))
 
     t = QuantumAPolynomial(run['knot'],run['pachner_moves'])
