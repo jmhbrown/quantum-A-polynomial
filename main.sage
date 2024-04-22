@@ -1054,11 +1054,6 @@ class QuantumAPolynomial:
 
 
         omega_with_q = QuantumAPolynomial.get_relations_matrix(M,gens_dict,weights_dict)
-        if not omega_with_q.is_skew_symmetric():
-            logger.warning("Our relations matrix is not skew symmetric!")
-
-        kernel_41 = omega_with_q.kernel().basis()
-
 
         # checking that the keys are in the same order.
         if list(weights_dict.keys()) != list(gens_dict.keys())[1:]:
