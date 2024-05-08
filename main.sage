@@ -12,7 +12,8 @@ class QuantumAPolynomial:
         self.longitude = None
         self.meridian = None
         self.gens_dict = None
-        self.relations = None
+        self.commutation_relations = None
+        self.bulk_relations = []
 
         # Define q and some of its roots.
         q = var('q')
@@ -638,6 +639,7 @@ class QuantumAPolynomial:
     def order_curve(curve,gens_dict,weights_matrix,vertices_dict,relations):
         """
         Takes the normal-order version of an oriented curve and returns the product of the generators in the order that they're encountered as we travel along the curve. Makes an arbitrary choice of starting point."""
+        #TODO - this doesn't handle long edges, which have weight +1 everywhere.
 
         # make a copy since we do descructive actions:
         unordered_curve = curve.copy()
@@ -655,7 +657,7 @@ class QuantumAPolynomial:
             
             if len(next_gen) > 1:
                 # We have more than one option for the next generator! Just remove one and stick it back in unordered_curve.
-                #logger.debug("More than one option for the next generator!")
+                logger.debug("More than one option for the next generator!")
                 tmp_leftover_gen = next_gen.popitem()
                 leftover_gen.update({tmp_leftover_gen[0]:tmp_leftover_gen[1]})
                 # unused - this version picks the other direction.
@@ -664,7 +666,7 @@ class QuantumAPolynomial:
                 #next_gen = {tmp_next_gen[0]:tmp_next_gen[1]}
             if next_gen == {}:
                 # we didn't find a candidate! This (hopefully!) means that we've completed an ordered curve and need to restart
-                #logger.debug("We don't have a candidate for the next generator!")
+                logger.debug("We don't have a candidate for the next generator!")
                 tmp_next_gen = unordered_curve.popitem()
                 next_gen = {tmp_next_gen[0]:tmp_next_gen[1]}
                 # re-add our new start since we remove it at the very end.
@@ -672,7 +674,7 @@ class QuantumAPolynomial:
             if list(next_gen.values())[0] > 1:
                 # This generator shows up more than once!
                 # We only want to move one copy of it from unordered_curve to ordered_curve.
-                #logger.debug("This generator shows up more than once!")
+                logger.debug("This generator shows up more than once!")
                 leftover_gen.update({k:v-sign(v) for k,v in next_gen.items() if v-sign(v) != 0})
                 next_gen = {k:sign(v) for k,v in next_gen.items()}
             
