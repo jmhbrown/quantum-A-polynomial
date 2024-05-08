@@ -3,7 +3,7 @@ class QuantumAPolynomial:
         """
         parameters:
         knot str - the knot we're working on. e.g. 4_1, 6_2
-        pachner_moves list[dict] - the list of pachner moves to apply, in the format {'tet_num':int, 'face_index':int}.
+        pachner_moves list[dict] - the list of pachner moves to apply, each in the format {'tet_num':int, 'face_index':int}.
         """
 
         self.knot = knot
@@ -81,12 +81,6 @@ class QuantumAPolynomial:
             lattice_coord = list(list(monomial.keys())[0])
             lattice_coord[0] += coeff.degree()/2 # the coeff is in terms of qrt4, qrt4^4 = q
             return lattice_coord
-
-
-
-
-
-    # Functions for quantum tori - TODO combine this with the quantum_tori notebook.
 
 
     def names_to_lattice_coordinate(names,gens_dict):
@@ -976,7 +970,8 @@ class QuantumAPolynomial:
         M = __self__.M
         num_tet = M.num_tetrahedra()
 
-        gens_dict = QuantumAPolynomial.get_unglued_gens_dict(M)
+        __self__.gens_dict = QuantumAPolynomial.get_unglued_gens_dict(M)
+        gens_dict = __self__.gens_dict
 
         # Vertices
 
@@ -1092,7 +1087,7 @@ class QuantumAPolynomial:
 
 
         T_monodromy_variable_names_list = QuantumAPolynomial.get_T_monodromy_list(M,gens_dict)
-        logger.debug("T_monodromy_variable_names_list:{}".format(T_monodromy_variable_names_list))
+        #logger.debug("T_monodromy_variable_names_list:{}".format(T_monodromy_variable_names_list))
         T_monodromy_lattice_coordinate_list = [
             QuantumAPolynomial.names_to_lattice_coordinate(v,gens_dict) for v in T_monodromy_variable_names_list
         ]
@@ -1104,7 +1099,7 @@ class QuantumAPolynomial:
 
 
         long_edge_gluing_relations_list = QuantumAPolynomial.get_long_edge_gluing_relations_list(M,gens_dict)
-        logger.debug("long_edge_gluing_relations_list:\n"+"\n".join([str(relation) for relation in long_edge_gluing_relations_list]))
+        #logger.debug("long_edge_gluing_relations_list:\n"+"\n".join([str(relation) for relation in long_edge_gluing_relations_list]))
 
         # Check that all relations are T-invariant, and incidentally that we've listed actual threads.
         for constraint in long_edge_gluing_relations_list:
@@ -1114,20 +1109,20 @@ class QuantumAPolynomial:
 
 
         short_edge_gluing_relations_list = QuantumAPolynomial.get_short_edge_gluing_relations_list(M,weights_dict)
-        logger.debug("short_edge_gluing_relations_list:\n"+"\n".join([str(relation) for relation in short_edge_gluing_relations_list]))
+        #logger.debug("short_edge_gluing_relations_list:\n"+"\n".join([str(relation) for relation in short_edge_gluing_relations_list]))
 
         # Check that all relations are T-invariant, and incidentally that we've listed actual threads.
         for constraint in short_edge_gluing_relations_list:
             if not (sum([gens_dict[edge] for edge in constraint])*weights_matrix).is_zero():
                 logger.error("A gluing relation is not T-invariant, or perhaps involves non-existant threads! "+ str(constraint))
         internal_edge_monodromy_list = QuantumAPolynomial.get_internal_edge_monodromy(gens_dict)
-        logger.debug("internal_edge_monodromy_list. These should come in pairs of equal length. \n"+"\n".join([str(relation) for relation in internal_edge_monodromy_list]))
+        #logger.debug("internal_edge_monodromy_list. These should come in pairs of equal length. \n"+"\n".join([str(relation) for relation in internal_edge_monodromy_list]))
 
 
         if len(internal_edge_monodromy_list) != 2*M.num_tetrahedra():
             # 2t because there are 2t pairs of glued faces, t-1 of which don't increase the genus.
             # so genus is g = 2t - (t-1) = t+1. We're interested in the T-region torus, so g-1 genus is killed using 2(g-1) = 2t constraints.
-            logger.error("There are {0} internal edge monodromy relations, we expect to have {1}".format(len(internal_edge_monodromy_list),2*M.num_tetrahedra()))
+            logger.warn("There are {0} internal edge monodromy relations, we expect to have {1} if every face has been glued!".format(len(internal_edge_monodromy_list),2*M.num_tetrahedra()))
             
         for constraint in internal_edge_monodromy_list:
             if not (sum([gens_dict[edge] for edge in constraint])*weights_matrix).is_zero():
@@ -1250,9 +1245,11 @@ class QuantumAPolynomial:
 
         qrt2 = quotient_ring('qrt2')
 
+        #TODO - double check the power of q here! I might have accidentally introduced crossings in the T region by having things arrive at gates at the wrong time.
         generic_crossing_relation = [ # this equals 1 and was found by hand
-            {'qrt2':1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
-            {'qrt2':-1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
+            # 
+            {'qrt2':1+8, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
+            {'qrt2':-1+8, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
         ]
 
         crossing_relations = []
@@ -1313,4 +1310,3 @@ class QuantumAPolynomial:
         
     #A = QuantumAPolynomial.get_A_polynomial_using_basis(test_basis,gens_dict)
 
-# TODO: Check that the relations I quotient by are in the complement of the invariant lattice. This is what I need in order for the commutation relations to descend to the quotient lattice.
