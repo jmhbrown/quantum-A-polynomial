@@ -1245,9 +1245,8 @@ class QuantumAPolynomial:
 
         qrt2 = quotient_ring('qrt2')
 
-        #TODO - double check the power of q here! I might have accidentally introduced crossings in the T region by having things arrive at gates at the wrong time.
         generic_crossing_relation = [ # this equals 1 and was found by hand
-            # 
+            # The +8 is to resolve crossings. If I got the power backward these should both be +0. 
             {'qrt2':1+8, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
             {'qrt2':-1+8, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
         ]
