@@ -1264,7 +1264,7 @@ class QuantumAPolynomial:
         logger.info("Relations:\n"+str(crossing_relations))
         A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-M.num_tetrahedra()+1:]]).gens()[0]
 
-        # TODO
+        # TODO debugging output to probe the elimination ideal
         if logger.level <= 10:
             logger.debug("Eliminating: {}".format(quotient_ring.gens()[-M.num_tetrahedra()+1:]))
             #partial_elim_ideal  = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-M.num_tetrahedra():]]).gens()[0]
