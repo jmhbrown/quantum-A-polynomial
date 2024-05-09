@@ -101,20 +101,37 @@ class QuantumAPolynomial:
         
         return dict_form
 
-    def lattice_coord_to_ring_element(coord,the_ring):
+    def lattice_coord_to_ring_element(coord,the_ring,relations):
         """
         Turns a lattice coordinate into a ring element.
         Assumes that the coordinate and the_ring.gens() use the same order.
-        This recreates the functionality of the_ring.monomial, which isn't implemented for all the rings we work with.
+        This recreates the functionality of the_ring.monomial for a quantum torus.
         
         Parameters:
             coord (List) - the lattice coordinate of a module element.
             the_ring (fgp_module) - the ambient module
+            relations (matrix) - the relations matrix
         
         Returns:
             (the_ring.element_class) - the ring element corresponding to the lattice coordinate
         """
-        return reduce(the_ring.product, [term[0]**term[1] for term in zip(the_ring.gens(),coord)])
+        
+
+        dim = len(vector(ZZ,coord))
+        tmp_scalar_power = 0
+        for i in range(dim):
+            if not (coord[i].is_zero() or vector(coord[i+1:]).is_zero()):
+                leading_factor = vector([0]*dim)
+                leading_factor[i] = coord[i]
+                trailing_terms = vector([0]*dim)
+                trailing_terms[i+1:] = coord[i+1:]
+            
+                tmp_scalar_power -= (matrix(leading_factor)*relations*matrix(trailing_terms).transpose())[0]
+
+        q_power = vector(list(tmp_scalar_power/2) + [0]*(dim-1)) 
+        logger.debug("The q_power is {}".format(q_power))
+        scaled_coord = vector(coord) + vector(q_power)
+        return reduce(the_ring.product, [term[0]**term[1] for term in zip(the_ring.gens(),scaled_coord)])
 
     def product_from_lattice_coordinates(*coords, relations=matrix.identity(3), gens_dict={'qrt2':(2,0,0),'A':(0,1,0),'a':(0,0,1)}):
         #TODO - double check that this works like I think it should.
@@ -1211,10 +1228,15 @@ class QuantumAPolynomial:
                 logger.warning("We have torsion in the quotient where we didn't expect it! {} != 1".format(smith[i,i]))
 
         quotient_ring = LaurentPolynomialRing(QQ,['qrt2','M','L'] + ['w{0}'.format(i-3) for i in range(3,quotient_lattice.ngens())])
-        polynomial_ring = PolynomialRing(QQ,['qrt2','L','M'] + ['w{0}'.format(i-3) for i in range(3,quotient_lattice.ngens())])
+        polynomial_ring = PolynomialRing(QQ,['qrt2','M','L'] + ['w{0}'.format(i-3) for i in range(3,quotient_lattice.ngens())])
 
         change_of_basis_matrix = quotient_basis.det()*quotient_basis.inverse()
 
+        # make the relations matrix for the quotient
+        quotient_omega = Matrix([[(Matrix(v.lift())*omega_with_q*Matrix(w.lift()).transpose())[0,0] for v in quotient_lattice.gens()] for w in quotient_lattice.gens()])
+        logger.debug("quotient_omega is: {}".format(quotient_omega))
+        if not quotient_omega.is_skew_symmetric():
+            logger.error("The quotient lattice does not have a skew symmetric bilinear form!")
 
 
         # ## Kernel for the Knot Complement
@@ -1234,7 +1256,7 @@ class QuantumAPolynomial:
         for tt in range(M.num_tetrahedra()):
             specific_crossing_relation = sum([
                 QuantumAPolynomial.lattice_coord_to_ring_element(change_of_basis_matrix*vector(pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
-                    for k,v in monomial.items()},gens_dict))),quotient_ring) 
+                    for k,v in monomial.items()},gens_dict))),quotient_ring, quotient_omega) 
                         for monomial in generic_crossing_relation
             ]).subs({quotient_ring('qrt2'):-1})+1
             logger.debug("Relation for tetrahedron #{0}: {1}".format(tt,specific_crossing_relation))
@@ -1271,7 +1293,7 @@ class QuantumAPolynomial:
         for tt in range(M.num_tetrahedra()):
             specific_crossing_relation = sum([
                 QuantumAPolynomial.lattice_coord_to_ring_element(tmp_change_of_basis_matrix*vector(pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
-                    for k,v in monomial.items()},gens_dict))),quotient_ring) 
+                    for k,v in monomial.items()},gens_dict))),quotient_ring, quotient_omega) 
                         for monomial in generic_crossing_relation
             ]).subs({quotient_ring('qrt2'):-1})+1
             crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
