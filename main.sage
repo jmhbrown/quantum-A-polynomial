@@ -51,27 +51,6 @@ class QuantumAPolynomial:
     # multiply_termwise(v,w) returns (v1*w1,...,vn*wn)
     def multiply_termwise(*args):
         return reduce(lambda vec1, vec2: list(map(lambda x,y: x*y, vec1,vec2)), args)
-        
-
-    def get_normal_ordering_power(term,relations):
-        # :ab: = q^{-n}:a: :b:, if ab = q^{2n}ba
-        dim = len(vector(ZZ,term))
-        scalar_power = 0
-        for i in range(dim):
-            if not (term[i].is_zero() or vector(term[i+1:]).is_zero()):
-                leading_factor = vector([0]*dim)
-                leading_factor[i] = term[i]
-                trailing_terms = vector([0]*dim)
-                trailing_terms[i+1:] = term[i+1:]
-            
-                scalar_power -= (matrix(leading_factor)*relations*matrix(trailing_terms).transpose())[0]
-        return (scalar_power/2)[0]
-
-    def add_normal_ordering_scalar(list_of_terms,relations):
-        new_list_of_terms = list_of_terms
-        for term in new_list_of_terms:
-            term[0] += QuantumAPolynomial.get_normal_ordering_power(term,relations)
-        return new_list_of_terms
 
     def dict_monomial_to_list(monomial):
         coeff = LaurentPolynomialRing(ZZ,'qrt4')(list(monomial.values())[0])
