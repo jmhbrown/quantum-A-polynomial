@@ -12,8 +12,11 @@ class QuantumAPolynomial:
         self.longitude = None
         self.meridian = None
         self.gens_dict = None
-        self.commutation_relations = None
+        self.omega_with_q = None
+        self.quotient_omega = None
+        self.weights_dict = None
         self.bulk_relations = []
+        self.quotient_lattice = None
 
         # Define q and some of its roots.
         q = var('q')
@@ -966,8 +969,7 @@ class QuantumAPolynomial:
         M = __self__.M
         num_tet = M.num_tetrahedra()
 
-        __self__.gens_dict = QuantumAPolynomial.get_unglued_gens_dict(M)
-        gens_dict = __self__.gens_dict
+        gens_dict = QuantumAPolynomial.get_unglued_gens_dict(M)
 
         # Vertices
 
@@ -1029,9 +1031,12 @@ class QuantumAPolynomial:
 
         # Add thread weights to the big weights dictionary.
         weights_dict.update(QuantumAPolynomial.get_thread_weights_dict(M,weights_dict))
+        # expose this as an external variable
+        __self__.weights_dict = weights_dict
 
         # add threads to the gens_dict
         QuantumAPolynomial.add_thread_lattice_coordinates(M,gens_dict,weights_dict)
+        __self__.gens_dict = gens_dict 
 
 
 
@@ -1047,6 +1052,7 @@ class QuantumAPolynomial:
 
 
         omega_with_q = QuantumAPolynomial.get_relations_matrix(M,gens_dict,weights_dict)
+        __self__.omega_with_q = omega_with_q
 
         # checking that the keys are in the same order.
         if list(weights_dict.keys()) != list(gens_dict.keys())[1:]:
@@ -1066,20 +1072,13 @@ class QuantumAPolynomial:
 
         ### Get the meridian and longitude
 
-        meridian = QuantumAPolynomial.get_peripheral_curve_monomial(M,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='meridian')
-        ordered_meridian =QuantumAPolynomial.order_curve(meridian,gens_dict,weights_matrix,vertices_dict,omega_with_q)
-        logger.debug("ordered vs unordered: {}".format(QuantumAPolynomial.names_to_lattice_coordinate(meridian,gens_dict) - ordered_meridian))
-
+        unordered_meridian = QuantumAPolynomial.get_peripheral_curve_monomial(M,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='meridian')
+        meridian =QuantumAPolynomial.order_curve(unordered_meridian,gens_dict,weights_matrix,vertices_dict,omega_with_q)
         __self__.meridian = meridian
 
-        longitude = QuantumAPolynomial.get_peripheral_curve_monomial(M,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='longitude')
-        ordered_longitude = QuantumAPolynomial.order_curve(longitude,gens_dict,weights_matrix,vertices_dict,omega_with_q)
-        logger.debug("ordered vs unordered: {}".format(QuantumAPolynomial.names_to_lattice_coordinate(longitude,gens_dict) - ordered_longitude))
+        unordered_longitude = QuantumAPolynomial.get_peripheral_curve_monomial(M,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='longitude')
+        longitude = QuantumAPolynomial.order_curve(unordered_longitude,gens_dict,weights_matrix,vertices_dict,omega_with_q)
         __self__.longitude = longitude
-
-
-        logger.debug("Commutation relations: M*L = q^({0})L*M".format((matrix(QuantumAPolynomial.names_to_lattice_coordinate(meridian,gens_dict))*omega_with_q*matrix(QuantumAPolynomial.names_to_lattice_coordinate(longitude,gens_dict)).transpose())[0,0]/4))
-
 
 
         T_monodromy_variable_names_list = QuantumAPolynomial.get_T_monodromy_list(M,gens_dict)
@@ -1136,23 +1135,23 @@ class QuantumAPolynomial:
             ]
         )
 
+        __self__.quotient_lattice = quotient_lattice
+
         pi = quotient_lattice.coerce_map_from(quotient_lattice.V())
 
 
         # Next build the quotient basis!
 
+        # this is the unordered verison.
+        #T_region_basis = matrix([
+            #pi(gens_dict['qrt2']), pi(QuantumAPolynomial.names_to_lattice_coordinate(meridian,gens_dict)),
+            #pi(QuantumAPolynomial.names_to_lattice_coordinate(longitude,gens_dict))
+            #])
         T_region_basis = matrix([
-            pi(gens_dict['qrt2']), pi(QuantumAPolynomial.names_to_lattice_coordinate(meridian,gens_dict)),
-            pi(QuantumAPolynomial.names_to_lattice_coordinate(longitude,gens_dict))
-            ])
-        ordered_T_region_basis = matrix([
-            pi(gens_dict['qrt2']), pi(ordered_meridian),
-            pi(ordered_longitude)
+            pi(gens_dict['qrt2']), pi(meridian),
+            pi(longitude)
             ])
         logger.debug("T_region_basis:\n{0}".format(T_region_basis))
-        logger.debug("ordered_T_region_basis:\n{0}".format(ordered_T_region_basis))
-        ## TRY USING THE ORDERED VERSION:
-        T_region_basis = ordered_T_region_basis
         T_region_minor_indexes = [(i,j,k)
                 for i in range(T_region_basis.ncols())
                 for j in range(i+1,T_region_basis.ncols())
@@ -1234,6 +1233,8 @@ class QuantumAPolynomial:
 
         # make the relations matrix for the quotient
         quotient_omega = Matrix([[(Matrix(v.lift())*omega_with_q*Matrix(w.lift()).transpose())[0,0] for v in quotient_lattice.gens()] for w in quotient_lattice.gens()])
+        __self__.quotient_omega = quotient_omega
+
         logger.debug("quotient_omega is: {}".format(quotient_omega))
         if not quotient_omega.is_skew_symmetric():
             logger.error("The quotient lattice does not have a skew symmetric bilinear form!")
@@ -1256,7 +1257,7 @@ class QuantumAPolynomial:
         for tt in range(M.num_tetrahedra()):
             specific_crossing_relation = sum([
                 QuantumAPolynomial.lattice_coord_to_ring_element(change_of_basis_matrix*vector(pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
-                    for k,v in monomial.items()},gens_dict))),quotient_ring, quotient_omega) 
+                    for k,v in monomial.items()},gens_dict))),quotient_ring, quotient_omega)
                         for monomial in generic_crossing_relation
             ]).subs({quotient_ring('qrt2'):-1})+1
             logger.debug("Relation for tetrahedron #{0}: {1}".format(tt,specific_crossing_relation))
