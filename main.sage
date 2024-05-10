@@ -15,7 +15,7 @@ class QuantumAPolynomial:
         self.omega_with_q = None
         self.quotient_omega = None
         self.weights_dict = None
-        self.bulk_relations = []
+        self.crossing_relations = []
         self.quotient_lattice = None
 
         # Define q and some of its roots.
@@ -132,7 +132,7 @@ class QuantumAPolynomial:
                 tmp_scalar_power -= (matrix(leading_factor)*relations*matrix(trailing_terms).transpose())[0]
 
         q_power = vector(list(tmp_scalar_power/2) + [0]*(dim-1)) 
-        logger.debug("The q_power is {}".format(q_power))
+        #logger.debug("The q_power is {}".format(q_power))
         scaled_coord = vector(coord) + vector(q_power)
         return reduce(the_ring.product, [term[0]**term[1] for term in zip(the_ring.gens(),scaled_coord)])
 
@@ -659,7 +659,6 @@ class QuantumAPolynomial:
                 #next_gen = {tmp_next_gen[0]:tmp_next_gen[1]}
             if next_gen == {}:
                 # we didn't find a candidate! This (hopefully!) means that we've completed an ordered curve and need to restart
-                logger.debug("We don't have a candidate for the next generator!")
                 tmp_next_gen = unordered_curve.popitem()
                 next_gen = {tmp_next_gen[0]:tmp_next_gen[1]}
                 # re-add our new start since we remove it at the very end.
@@ -667,7 +666,6 @@ class QuantumAPolynomial:
             if list(next_gen.values())[0] > 1:
                 # This generator shows up more than once!
                 # We only want to move one copy of it from unordered_curve to ordered_curve.
-                logger.debug("This generator shows up more than once!")
                 leftover_gen.update({k:v-sign(v) for k,v in next_gen.items() if v-sign(v) != 0})
                 next_gen = {k:sign(v) for k,v in next_gen.items()}
             
@@ -708,7 +706,7 @@ class QuantumAPolynomial:
                 for f in range(4)
                 if 0 != curve_data[t][4*v+f]
             }
-        logger.debug('intersection data for {0}: {1}'.format(curve,str(curve_dict)))
+        #logger.debug('intersection data for {0}: {1}'.format(curve,str(curve_dict)))
 
         return curve_dict 
 
@@ -1235,7 +1233,7 @@ class QuantumAPolynomial:
         quotient_omega = Matrix([[(Matrix(v.lift())*omega_with_q*Matrix(w.lift()).transpose())[0,0] for v in quotient_lattice.gens()] for w in quotient_lattice.gens()])
         __self__.quotient_omega = quotient_omega
 
-        logger.debug("quotient_omega is: {}".format(quotient_omega))
+        logger.debug("quotient_omega is:\n {}".format(quotient_omega))
         if not quotient_omega.is_skew_symmetric():
             logger.error("The quotient lattice does not have a skew symmetric bilinear form!")
 
@@ -1260,9 +1258,13 @@ class QuantumAPolynomial:
                     for k,v in monomial.items()},gens_dict))),quotient_ring, quotient_omega)
                         for monomial in generic_crossing_relation
             ]).subs({quotient_ring('qrt2'):-1})+1
-            logger.debug("Relation for tetrahedron #{0}: {1}".format(tt,specific_crossing_relation))
+
+            logger.debug("Relation for tetrahedron {0}: {1}".format(tt,specific_crossing_relation))
+
             crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
             
+        __self__.crossing_relations = crossing_relations
+
         logger.info("Relations:\n"+str(crossing_relations))
         A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-M.num_tetrahedra()+1:]]).gens()[0]
 
