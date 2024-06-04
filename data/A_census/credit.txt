@@ -1,0 +1,1 @@
+These A-polynomials were computed by Marc Culler and can be found on https://homepages.math.uic.edu/~culler/Apolynomials/
