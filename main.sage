@@ -859,7 +859,10 @@ class QuantumAPolynomial:
             tmp_gluing_dict[long_edge_pos] = 1
             
             long_edge_neg = "A" + index_sort_map(th[1:].split('_')[1])
-            tmp_gluing_dict[long_edge_neg] = -1
+            if long_edge_pos == long_edge_neg:
+                del tmp_gluing_dict[long_edge_pos]
+            else:
+                tmp_gluing_dict[long_edge_neg] = -1
             
             long_edge_gluing_relations_list.append(tmp_gluing_dict)
             
@@ -1224,8 +1227,10 @@ class QuantumAPolynomial:
             if smith_form[i,i] != 1:
                 logger.warning("We have torsion in the quotient where we didn't expect it! {} != 1".format(smith[i,i]))
 
-        quotient_ring = LaurentPolynomialRing(QQ,['qrt2','M','L'] + ['w{0}'.format(i-3) for i in range(3,quotient_lattice.ngens())])
-        polynomial_ring = PolynomialRing(QQ,['qrt2','M','L'] + ['w{0}'.format(i-3) for i in range(3,quotient_lattice.ngens())])
+        quotient_ring = LaurentPolynomialRing(QQ,['qrt2','M','L'] + ['w{0}'.format(i-3) for i in range(3,quotient_lattice.ngens())]+ ['w{0}i'.format(i-3) for i in range(3,quotient_lattice.ngens())])
+        polynomial_ring = PolynomialRing(QQ,['qrt2','M','L'] + ['w{0}'.format(i-3) for i in range(3,quotient_lattice.ngens())]+ ['w{0}i'.format(i-3) for i in range(3,quotient_lattice.ngens())])
+        quotient_ring.inject_variables()
+        __self__.polynomial_ring=polynomial_ring
 
         change_of_basis_matrix = quotient_basis.det()*quotient_basis.inverse()
 
@@ -1247,11 +1252,11 @@ class QuantumAPolynomial:
 
         generic_crossing_relation = [ # this equals 1 and was found by hand
             # The +8 is to resolve crossings. If I got the power backward these should both be +0. 
-            {'qrt2':1+8, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
-            {'qrt2':-1+8, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
+            {'qrt2':1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
+            {'qrt2':-1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
         ]
 
-        crossing_relations = []
+        crossing_relations = [quotient_ring('w{0}'.format(i-3))*quotient_ring('w{0}i'.format(i-3))-1 for i in range(3,quotient_lattice.ngens())]
         for tt in range(M.num_tetrahedra()):
             specific_crossing_relation = sum([
                 QuantumAPolynomial.lattice_coord_to_ring_element(change_of_basis_matrix*vector(pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
@@ -1266,21 +1271,33 @@ class QuantumAPolynomial:
         __self__.crossing_relations = crossing_relations
 
         logger.info("Relations:\n"+str(crossing_relations))
-        A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-M.num_tetrahedra()+1:]]).gens()[0]
-
+        A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-2*(M.num_tetrahedra()-1):]]).gens()[0]
+#        A_poly_candidate = polynomial_ring.ideal(crossing_relations).variety()
         # TODO debugging output to probe the elimination ideal
         if logger.level <= 10:
-            logger.debug("Eliminating: {}".format(quotient_ring.gens()[-M.num_tetrahedra()+1:]))
-            #partial_elim_ideal  = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-M.num_tetrahedra():]]).gens()[0]
-            #logger.debug("I've eliminated everything but {0}: {1}".format(quotient_ring.gens()[-M.num_tetrahedra()+2:],partial_elim_ideal))
+            logger.debug("Eliminating: {}".format(quotient_ring.gens()[-2*(M.num_tetrahedra()-1):]))
+            #partial_elim_ideal  = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-2*M.num_tetrahedra():]]).gens()[0]
+            #logger.debug("I've eliminated everything but {0}: {1}".format(quotient_ring.gens()[-M.num_tetrahedra()+1:],partial_elim_ideal))
         if A_poly_candidate == 0:
             logger.warning("We have 0 for the A-polynomial!")
         else:
             logger.info("A-polynomial:\n"+str(A_poly_candidate.factor()))
+            if __self__.knot == '4_1':
+                if A_poly_candidate.reduce([polynomial_ring(L^2*polynomial_ring('M')^4+L*(-polynomial_ring('M')^8+polynomial_ring('M')^6+2*polynomial_ring('M')^4+polynomial_ring('M')^2-1)+polynomial_ring('M')^4)])==0:
+                    logger.debug('This candidate IS divisible by the A-polynomial known to KnotAtlas')
+                else:
+                    logger.debug('This candidate IS NOT divisible by the A-polynomial known to KnotAtlas')
+                    if A_poly_candidate.reduce([polynomial_ring(L^2*polynomial_ring('M')^4-L*(-polynomial_ring('M')^8+polynomial_ring('M')^6+2*polynomial_ring('M')^4+polynomial_ring('M')^2-1)+polynomial_ring('M')^4)])==0:
+                        logger.debug('However it is once we substitute L for (-L)')
+            if __self__.knot == '6_2':
+                if A_poly_candidate.reduce([polynomial_ring(L^5*polynomial_ring('M')^(26)+L^4*(-polynomial_ring('M')^(30)+2*polynomial_ring('M')^(28)-polynomial_ring('M')^(26)-2*polynomial_ring('M')^(24)+5*polynomial_ring('M')^(22)+5*polynomial_ring('M')^(20)-3*polynomial_ring('M')^(18))+L^3*(-polynomial_ring('M')^(28)+3*polynomial_ring('M')^(26)-polynomial_ring('M')^(24)-5*polynomial_ring('M')^(22)-3*polynomial_ring('M')^(20)+12*polynomial_ring('M')^(18)+13*polynomial_ring('M')^(16)-3*polynomial_ring('M')^(14)-8*polynomial_ring('M')^(12)+3*polynomial_ring('M')^(10))+L^2*(3*polynomial_ring('M')^(20)-8*polynomial_ring('M')^(18)-3*polynomial_ring('M')^(16)+13*polynomial_ring('M')^(14)+12*polynomial_ring('M')^(12)-3*polynomial_ring('M')^(10)-5*polynomial_ring('M')^(8)-polynomial_ring('M')^6+3*polynomial_ring('M')^4-polynomial_ring('M')^2)+L*(-3*polynomial_ring('M')^(12)+5*polynomial_ring('M')^(10)+5*polynomial_ring('M')^8-2*polynomial_ring('M')^6-polynomial_ring('M')^4+2*polynomial_ring('M')^2-1)+polynomial_ring('M')^4)])==0:
+                    logger.debug('This candidate IS divisible by the A-polynomial known to KnotAtlas')
+                else:
+                    logger.debug('This candidate IS NOT divisible by the A-polynomial known to KnotAtlas')
+                    if A_poly_candidate.reduce([polynomial_ring(-L^5*polynomial_ring('M')^(26)+L^4*(-polynomial_ring('M')^(30)+2*polynomial_ring('M')^(28)-polynomial_ring('M')^(26)-2*polynomial_ring('M')^(24)+5*polynomial_ring('M')^(22)+5*polynomial_ring('M')^(20)-3*polynomial_ring('M')^(18))-L^3*(-polynomial_ring('M')^(28)+3*polynomial_ring('M')^(26)-polynomial_ring('M')^(24)-5*polynomial_ring('M')^(22)-3*polynomial_ring('M')^(20)+12*polynomial_ring('M')^(18)+13*polynomial_ring('M')^(16)-3*polynomial_ring('M')^(14)-8*polynomial_ring('M')^(12)+3*polynomial_ring('M')^(10))+L^2*(3*polynomial_ring('M')^(20)-8*polynomial_ring('M')^(18)-3*polynomial_ring('M')^(16)+13*polynomial_ring('M')^(14)+12*polynomial_ring('M')^(12)-3*polynomial_ring('M')^(10)-5*polynomial_ring('M')^(8)-polynomial_ring('M')^6+3*polynomial_ring('M')^4-polynomial_ring('M')^2)-L*(-3*polynomial_ring('M')^(12)+5*polynomial_ring('M')^(10)+5*polynomial_ring('M')^8-2*polynomial_ring('M')^6-polynomial_ring('M')^4+2*polynomial_ring('M')^2-1)+polynomial_ring('M')^4)])==0:
+                        logger.debug('However it is once we substitute L for (-L)')
 
-
-
-
+        return A_poly_candidate
 
     # ### Different bases for the quotient lattice (scratch!)
 
