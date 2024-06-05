@@ -17,6 +17,7 @@ class QuantumAPolynomial:
         self.weights_dict = None
         self.crossing_relations = []
         self.quotient_lattice = None
+        self.polynomial_ring=None
 
         self.A_poly = None
         self.ref_A_poly = None
@@ -135,9 +136,9 @@ class QuantumAPolynomial:
             
                 tmp_scalar_power -= (matrix(leading_factor)*relations*matrix(trailing_terms).transpose())[0]
 
-        q_power = vector(list(tmp_scalar_power/2) + [0]*(dim-1)) 
+        #q_power = vector(list(tmp_scalar_power) + [0]*(dim-1)) 
         #logger.debug("The q_power is {}".format(q_power))
-        scaled_coord = vector(coord) + vector(q_power)
+        scaled_coord = vector(coord)# + vector(q_power)
         return reduce(the_ring.product, [term[0]**term[1] for term in zip(the_ring.gens(),scaled_coord)])
 
     def product_from_lattice_coordinates(*coords, relations=matrix.identity(3), gens_dict={'qrt2':(2,0,0),'A':(0,1,0),'a':(0,0,1)}):
@@ -552,7 +553,7 @@ class QuantumAPolynomial:
             ])
         )
         
-        return omega_with_q
+        return 1/2*omega_with_q
 
     def get_weights_matrix(vertices_dict,weights_dict):
         """
@@ -826,7 +827,7 @@ class QuantumAPolynomial:
         short_edge_names = list(filter(lambda name: name[0]=='a', gens_dict.keys()))
         T_monodromy_list = []
         for p in range(num_tet*4):
-            T_monodromy_list.append({'qrt2':2} | {k:1 for k in short_edge_names[3*p:3*p+3]})
+            T_monodromy_list.append({'qrt2':1} | {k:1 for k in short_edge_names[3*p:3*p+3]})
         
         return T_monodromy_list
 
@@ -913,7 +914,7 @@ class QuantumAPolynomial:
                         distant_ending_vertex = [vertex[1:] for vertex,weight in tmp_distant_weights.items() if weight == 1][0]  
 
                         short_edge_gluing_relations_list.append({
-                            'qrt2' : 2,
+                            'qrt2' : 1,
                             short_edge : 1,
                             'x{0}_{1}'.format(local_starting_vertex,distant_ending_vertex) : 1,
                             distant_short_edge : 1,
@@ -933,7 +934,7 @@ class QuantumAPolynomial:
         
         threads_list = [k for k in gens_dict.keys() if k[0] == 'x']
         th = threads_list[0]
-        tmp_monodromy_dict = {'qrt2':2,th:1}
+        tmp_monodromy_dict = {'qrt2':1,th:1}
 
         while threads_list:
             th_end_vertex = th[1:].split('_')[1]
@@ -946,7 +947,7 @@ class QuantumAPolynomial:
                 if threads_list == list():
                     return list_of_monodromies
                 th = threads_list[0]
-                tmp_monodromy_dict = {'qrt2':2,th:1}
+                tmp_monodromy_dict = {'qrt2':1,th:1}
             else:
                 tmp_monodromy_dict.update({next_thread:1})
                 th = next_thread
@@ -1056,7 +1057,7 @@ class QuantumAPolynomial:
                 logger.warning("The thread relations are not skew-symmetric!")
 
 
-        omega_with_q = QuantumAPolynomial.get_relations_matrix(M,gens_dict,weights_dict)
+        omega_with_q = 1/2*QuantumAPolynomial.get_relations_matrix(M,gens_dict,weights_dict)
         __self__.omega_with_q = omega_with_q
 
         # checking that the keys are in the same order.
@@ -1079,10 +1080,12 @@ class QuantumAPolynomial:
 
         unordered_meridian = QuantumAPolynomial.get_peripheral_curve_monomial(M,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='meridian')
         meridian =QuantumAPolynomial.order_curve(unordered_meridian,gens_dict,weights_matrix,vertices_dict,omega_with_q)
+        meridian[0]=0
         __self__.meridian = meridian
 
         unordered_longitude = QuantumAPolynomial.get_peripheral_curve_monomial(M,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='longitude')
         longitude = QuantumAPolynomial.order_curve(unordered_longitude,gens_dict,weights_matrix,vertices_dict,omega_with_q)
+        longitude[0]=0
         __self__.longitude = longitude
 
 
@@ -1266,7 +1269,7 @@ class QuantumAPolynomial:
                 QuantumAPolynomial.lattice_coord_to_ring_element(change_of_basis_matrix*vector(pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
                     for k,v in monomial.items()},gens_dict))),quotient_ring, quotient_omega)
                         for monomial in generic_crossing_relation
-            ]).subs({quotient_ring('qrt2'):-1})+1
+            ]).subs({quotient_ring('qrt2'):-1})-1
 
             logger.debug("Relation for tetrahedron {0}: {1}".format(tt,specific_crossing_relation))
 
