@@ -19,6 +19,11 @@ class QuantumAPolynomial:
         self.quotient_lattice = None
         self.polynomial_ring=None
 
+        self.internal_edge_monodromy_list = None 
+        self.short_edge_gluing_relations_list = None 
+        self.long_edge_gluing_relations_list = None 
+        self.T_monodromy_variable_names_list = None 
+
         self.A_poly = None
         self.ref_A_poly = None
 
@@ -875,6 +880,7 @@ class QuantumAPolynomial:
             threads_list = list(set(threads_list) - set(tmp_gluing_dict.keys()))
             
             if threads_list == list():
+                logger.debug("long_edge_gluing_relations_list:\n{}".format(long_edge_gluing_relations_list))
                 return long_edge_gluing_relations_list
             else:
                 # on to the next one
@@ -920,6 +926,7 @@ class QuantumAPolynomial:
                             distant_short_edge : 1,
                             'x{0}_{1}'.format(distant_starting_vertex,local_ending_vertex) : 1
                         })
+        logger.debug("short_edge_gluing_relations_list:\n{}".format(short_edge_gluing_relations_list))
         return short_edge_gluing_relations_list
 
 
@@ -1028,12 +1035,11 @@ class QuantumAPolynomial:
             })
 
         # are there self gluings?
-        if logger.level <= 10:
-            tet_gluings = {k:v for k,v in QuantumAPolynomial.get_gluing_dict(knot_comp).items() if k[0] == 'r'}
-            for k,v in tet_gluings.items():
-                this_tet = int(k[1:])
-                if v.count(this_tet) != 0:
-                    logger.debug("Tet {0} is self-glued!".format(this_tet))
+        tet_gluings = {k:v for k,v in QuantumAPolynomial.get_gluing_dict(knot_comp).items() if k[0] == 'r'}
+        for k,v in tet_gluings.items():
+            this_tet = int(k[1:])
+            if v.count(this_tet) != 0:
+                logger.warning("Tet {0} is self-glued!".format(this_tet))
 
         # Add thread weights to the big weights dictionary.
         weights_dict.update(QuantumAPolynomial.get_thread_weights_dict(knot_comp,weights_dict))
@@ -1227,6 +1233,12 @@ class QuantumAPolynomial:
             + T_monodromy_variable_names_list
             ])
 
+        __self__.internal_edge_monodromy_list = internal_edge_monodromy_list
+        __self__.short_edge_gluing_relations_list = short_edge_gluing_relations_list
+        __self__.long_edge_gluing_relations_list = long_edge_gluing_relations_list
+        __self__.T_monodromy_variable_names_list = T_monodromy_variable_names_list
+
+
         logger.debug("The relations matrix has dimension {0} and rank {1}.".format(relations_matrix.dimensions(),relations_matrix.rank()))
 
         smith_form = relations_matrix.smith_form()[0]
@@ -1258,7 +1270,6 @@ class QuantumAPolynomial:
         qrt2 = quotient_ring('qrt2')
 
         generic_crossing_relation = [ # this equals 1 and was found by hand
-            # The +8 is to resolve crossings. If I got the power backward these should both be +0. 
             {'qrt2':1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
             {'qrt2':-1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
         ]
@@ -1277,7 +1288,6 @@ class QuantumAPolynomial:
             
         __self__.crossing_relations = crossing_relations
 
-        logger.info("Relations:\n"+str(crossing_relations))
         A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-2*(knot_comp.num_tetrahedra()-1):]]).gens()[0]
         __self__.A_poly = A_poly_candidate
 
