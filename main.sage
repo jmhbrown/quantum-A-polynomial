@@ -1292,20 +1292,21 @@ class QuantumAPolynomial:
         else:
             logger.info("A-polynomial:\n"+str(A_poly_candidate.factor()))
 
-        with open('data/A_crossing/apolys/{}.txt'.format(__self__.knot), 'r') as file:
-            A_ref_string = file.read()
+            with open('data/A_crossing/apolys/{}.txt'.format(__self__.knot), 'r') as file:
+                A_ref_string = file.read()
 
 
-        A_ref = polynomial_ring(A_ref_string)
-        __self__.ref_A_poly = A_ref
-        logger.debug("Reference A-poly: {}".format(A_ref))
+            A_ref = polynomial_ring(A_ref_string)
+            __self__.ref_A_poly = A_ref
+            logger.debug("Reference A-poly: {}".format(A_ref))
 
-        if A_poly_candidate.reduce([A_ref]) == 0:
-            logger.info("Our A-polynomial IS divisible by the one computed by Culler!")
-        else:
-            if A_poly_candidate.reduce([A_ref.subs({polynomial_ring('L'): polynomial_ring('-L')})]) == 0:
-                logger.warning("After changing L to -L our A-polynomial IS divisible by the one cumputer by Culler!")
-            logger.warning("Our A-polynomial has a complicated relationship with the one computed by Culler!")
+            if A_poly_candidate.reduce([A_ref]) == 0:
+                logger.info("Our A-polynomial is divisible by the reference one!")
+            else:
+                if A_poly_candidate.reduce([A_ref.subs({polynomial_ring('L'): polynomial_ring('-L')})]) == 0:
+                    logger.warning("After changing L to -L our A-polynomial is divisible by the reference one!")
+                else:
+                    logger.warning("Our A-polynomial has a complicated relationship with the reference one!")
 
         return A_poly_candidate
 
