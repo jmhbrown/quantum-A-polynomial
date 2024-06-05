@@ -18,6 +18,10 @@ class QuantumAPolynomial:
         self.crossing_relations = []
         self.quotient_lattice = None
 
+        self.A_poly = None
+        self.ref_A_poly = None
+
+
         # Define q and some of its roots.
         q = var('q')
         qrt2 = var('qrt2')
@@ -1272,6 +1276,8 @@ class QuantumAPolynomial:
 
         logger.info("Relations:\n"+str(crossing_relations))
         A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-2*(M.num_tetrahedra()-1):]]).gens()[0]
+        __self__.A_poly = A_poly_candidate
+
 #        A_poly_candidate = polynomial_ring.ideal(crossing_relations).variety()
         # TODO debugging output to probe the elimination ideal
         if logger.level <= 10:
@@ -1282,20 +1288,21 @@ class QuantumAPolynomial:
             logger.warning("We have 0 for the A-polynomial!")
         else:
             logger.info("A-polynomial:\n"+str(A_poly_candidate.factor()))
-            if __self__.knot == '4_1':
-                if A_poly_candidate.reduce([polynomial_ring(L^2*polynomial_ring('M')^4+L*(-polynomial_ring('M')^8+polynomial_ring('M')^6+2*polynomial_ring('M')^4+polynomial_ring('M')^2-1)+polynomial_ring('M')^4)])==0:
-                    logger.info('This candidate IS divisible by the A-polynomial known to KnotAtlas')
-                else:
-                    logger.warning('This candidate IS NOT divisible by the A-polynomial known to KnotAtlas')
-                    if A_poly_candidate.reduce([polynomial_ring(L^2*polynomial_ring('M')^4-L*(-polynomial_ring('M')^8+polynomial_ring('M')^6+2*polynomial_ring('M')^4+polynomial_ring('M')^2-1)+polynomial_ring('M')^4)])==0:
-                        logger.warning('However it is once we substitute L for (-L)')
-            if __self__.knot == '6_2':
-                if A_poly_candidate.reduce([polynomial_ring(L^5*polynomial_ring('M')^(26)+L^4*(-polynomial_ring('M')^(30)+2*polynomial_ring('M')^(28)-polynomial_ring('M')^(26)-2*polynomial_ring('M')^(24)+5*polynomial_ring('M')^(22)+5*polynomial_ring('M')^(20)-3*polynomial_ring('M')^(18))+L^3*(-polynomial_ring('M')^(28)+3*polynomial_ring('M')^(26)-polynomial_ring('M')^(24)-5*polynomial_ring('M')^(22)-3*polynomial_ring('M')^(20)+12*polynomial_ring('M')^(18)+13*polynomial_ring('M')^(16)-3*polynomial_ring('M')^(14)-8*polynomial_ring('M')^(12)+3*polynomial_ring('M')^(10))+L^2*(3*polynomial_ring('M')^(20)-8*polynomial_ring('M')^(18)-3*polynomial_ring('M')^(16)+13*polynomial_ring('M')^(14)+12*polynomial_ring('M')^(12)-3*polynomial_ring('M')^(10)-5*polynomial_ring('M')^(8)-polynomial_ring('M')^6+3*polynomial_ring('M')^4-polynomial_ring('M')^2)+L*(-3*polynomial_ring('M')^(12)+5*polynomial_ring('M')^(10)+5*polynomial_ring('M')^8-2*polynomial_ring('M')^6-polynomial_ring('M')^4+2*polynomial_ring('M')^2-1)+polynomial_ring('M')^4)])==0:
-                    logger.info('This candidate IS divisible by the A-polynomial known to KnotAtlas')
-                else:
-                    logger.warning('This candidate IS NOT divisible by the A-polynomial known to KnotAtlas')
-                    if A_poly_candidate.reduce([polynomial_ring(-L^5*polynomial_ring('M')^(26)+L^4*(-polynomial_ring('M')^(30)+2*polynomial_ring('M')^(28)-polynomial_ring('M')^(26)-2*polynomial_ring('M')^(24)+5*polynomial_ring('M')^(22)+5*polynomial_ring('M')^(20)-3*polynomial_ring('M')^(18))-L^3*(-polynomial_ring('M')^(28)+3*polynomial_ring('M')^(26)-polynomial_ring('M')^(24)-5*polynomial_ring('M')^(22)-3*polynomial_ring('M')^(20)+12*polynomial_ring('M')^(18)+13*polynomial_ring('M')^(16)-3*polynomial_ring('M')^(14)-8*polynomial_ring('M')^(12)+3*polynomial_ring('M')^(10))+L^2*(3*polynomial_ring('M')^(20)-8*polynomial_ring('M')^(18)-3*polynomial_ring('M')^(16)+13*polynomial_ring('M')^(14)+12*polynomial_ring('M')^(12)-3*polynomial_ring('M')^(10)-5*polynomial_ring('M')^(8)-polynomial_ring('M')^6+3*polynomial_ring('M')^4-polynomial_ring('M')^2)-L*(-3*polynomial_ring('M')^(12)+5*polynomial_ring('M')^(10)+5*polynomial_ring('M')^8-2*polynomial_ring('M')^6-polynomial_ring('M')^4+2*polynomial_ring('M')^2-1)+polynomial_ring('M')^4)])==0:
-                        logger.warning('However it is once we substitute L for (-L)')
+
+        with open('data/A_crossing/apolys/{}.txt'.format(__self__.knot), 'r') as file:
+            A_ref_string = file.read()
+
+
+        A_ref = polynomial_ring(A_ref_string)
+        __self__.ref_A_poly = A_ref
+        logger.debug("Reference A-poly: {}".format(A_ref))
+
+        if A_poly_candidate.reduce([A_ref]) == 0:
+            logger.info("Our A-polynomial IS divisible by the one computed by Culler!")
+        else:
+            if A_poly_candidate.reduce([A_ref.subs({polynomial_ring('L'): polynomial_ring('-L')})]) == 0:
+                logger.warning("After changing L to -L our A-polynomial IS divisible by the one cumputer by Culler!")
+            logger.warning("Our A-polynomial has a complicated relationship with the one computed by Culler!")
 
         return A_poly_candidate
 
