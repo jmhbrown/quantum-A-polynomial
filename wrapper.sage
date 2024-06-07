@@ -4,23 +4,35 @@
 import argparse
 import logging
 import json
+import signal
 
 parser = argparse.ArgumentParser(description='Compute (quantum!) A-polynomials')
 parser.add_argument('-f', '--file', type=argparse.FileType('r'), help='JSON file with run options.')
 parser.add_argument('-o', '--output', help='File where output is written.')
 parser.add_argument('-l', '--log_level', default='info', choices=['debug','info','warning','error','critical'],help='Set the logging level.')
+parser.add_argument('-t', '--timeout', default='30', type=int, help='Set the timeout duration in minutes.')
 
 args = parser.parse_args()
 
 options = json.load(args.file)
 
+# error handling
+
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame): # might only work on unix-based systems?
+    raise TimeoutException
+
+# Change the behavior of SIGALRM
+signal.signal(signal.SIGALRM, timeout_handler)
 
 # Logging
 
 if args.output is None: # log to the console.
-    logging.basicConfig(level=args.log_level.upper(),format='%(levelname)s - %(message)s')
+    logging.basicConfig(level=args.log_level.upper(),format='%(asctime)s %(levelname)s - %(message)s')
 else:
-    logging.basicConfig(level=args.log_level.upper(),format='%(levelname)s - %(message)s',filename=args.output)
+    logging.basicConfig(level=args.log_level.upper(),format='%(asctime)s %(levelname)s - %(message)s',filename=args.output)
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +40,16 @@ sage.repl.load.load('main.sage',globals())
 
 for run in options["runs"]:
     logger.info("\n\n")
-    logger.info("Running: {}".format(run))
+    logger.info("Running: {0}".format(run))
 
-    t = QuantumAPolynomial(run['knot'],run['pachner_moves'])
+    signal.alarm(int(60*args.timeout)) # set timeout length.
 
-    t.compute_skein_module()
+    try:
+        t = QuantumAPolynomial(run['knot'],run['pachner_moves'])
+        t.compute_skein_module()
+    except TimeoutException:
+        continue
+    else:
+        # reset the alarm
+        signal.alarm(0)
 
