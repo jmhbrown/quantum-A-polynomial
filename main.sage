@@ -1,5 +1,5 @@
 class QuantumAPolynomial:
-    def __init__(self, knot, pachner_moves = []):
+    def __init__(self, knot, pachner_moves = [], reverse_orientation=False):
         """
         parameters:
         knot str - the knot we're working on. e.g. 4_1, 6_2
@@ -27,14 +27,7 @@ class QuantumAPolynomial:
         self.A_poly = None
         self.ref_A_poly = None
 
-
-        # Define q and some of its roots.
-        q = var('q')
         qrt2 = var('qrt2')
-        qrt4 = var('qrt4')
-        q = qrt4^4
-        q = qrt2^2
-        qrt2 = qrt4^2
 
 
         import snappy
@@ -42,6 +35,9 @@ class QuantumAPolynomial:
         ## Do Pachner Moves Here.
         for move in pachner_moves:
             knot_comp._two_to_three(move['tet'],move['face'])
+
+        if reverse_orientation:
+            knot_comp.reverse_orientation()
 
         self.knot_comp = knot_comp
 
@@ -1280,23 +1276,25 @@ class QuantumAPolynomial:
                 QuantumAPolynomial.lattice_coord_to_ring_element(change_of_basis_matrix*vector(pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
                     for k,v in monomial.items()},gens_dict))),quotient_ring, quotient_omega)
                         for monomial in generic_crossing_relation
-            ]).subs({quotient_ring('qrt2'):-1})-1
+            ]).subs({polynomial_ring('qrt2'):-1})-1
 
             logger.debug("Relation for tetrahedron {0}: {1}".format(tt,specific_crossing_relation))
 
+            # TODO - change this to avoid using clear_denominator.
+            #crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
             crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
             
         __self__.crossing_relations = crossing_relations
 
-        A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-2*(knot_comp.num_tetrahedra()-1):]]).gens()[0]
+        A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*(knot_comp.num_tetrahedra()-1):]]).gens()[0]
         __self__.A_poly = A_poly_candidate
 
 #        A_poly_candidate = polynomial_ring.ideal(crossing_relations).variety()
         # TODO debugging output to probe the elimination ideal
         if logger.level <= 10:
-            logger.debug("Eliminating: {}".format(quotient_ring.gens()[-2*(knot_comp.num_tetrahedra()-1):]))
-            #partial_elim_ideal  = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-2*knot_comp.num_tetrahedra():]]).gens()[0]
-            #logger.debug("I've eliminated everything but {0}: {1}".format(quotient_ring.gens()[-knot_comp.num_tetrahedra()+1:],partial_elim_ideal))
+            logger.debug("Eliminating: {}".format(polynomial_ring.gens()[-2*(knot_comp.num_tetrahedra()-1):]))
+            #partial_elim_ideal  = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*knot_comp.num_tetrahedra():]]).gens()[0]
+            #logger.debug("I've eliminated everything but {0}: {1}".format(polynomial_ring.gens()[-knot_comp.num_tetrahedra()+1:],partial_elim_ideal))
         if A_poly_candidate == 0:
             logger.warning("We have 0 for the A-polynomial!")
         else:
@@ -1314,9 +1312,9 @@ class QuantumAPolynomial:
                 logger.info("Our A-polynomial is divisible by the reference one!")
             else:
                 if A_poly_candidate.reduce([A_ref.subs({polynomial_ring('L'): polynomial_ring('-L')})]) == 0:
-                    logger.warning("After changing L to -L our A-polynomial is divisible by the reference one!")
+                    logger.info("After changing L to -L our A-polynomial is divisible by the reference one!")
                 else:
-                    logger.warning("Our A-polynomial has a complicated relationship with the reference one!")
+                    logger.error("Our A-polynomial has a complicated relationship with the reference one!")
 
         return A_poly_candidate
 
@@ -1334,13 +1332,13 @@ class QuantumAPolynomial:
         for tt in range(knot_comp.num_tetrahedra()):
             specific_crossing_relation = sum([
                 QuantumAPolynomial.lattice_coord_to_ring_element(tmp_change_of_basis_matrix*vector(pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
-                    for k,v in monomial.items()},gens_dict))),quotient_ring, quotient_omega) 
+                    for k,v in monomial.items()},gens_dict))),polynomial_ring, quotient_omega) 
                         for monomial in generic_crossing_relation
-            ]).subs({quotient_ring('qrt2'):-1})+1
+            ]).subs({polynomial_ring('qrt2'):-1})+1
             crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
         
         
-        A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in quotient_ring.gens()[-knot_comp.num_tetrahedra()+1:]]).gens()[0]
+        A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-knot_comp.num_tetrahedra()+1:]]).gens()[0]
         
         if print_steps:
             print("Relations:\n",crossing_relations)
