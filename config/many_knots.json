@@ -1,0 +1,144 @@
+{
+  "runs": [
+    {
+      "knot" : "3_1",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "4_1",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "5_1",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "5_2",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "6_1",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "6_2",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "6_3",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "7_1",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "7_2",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "7_3",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "7_4",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "7_5",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "7_6",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "7_7",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_1",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_2",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_3",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_4",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_5",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_6",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_7",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_8",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_9",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_10",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_11",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_12",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_13",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_14",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_15",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_16",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_17",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_18",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_19",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_20",
+      "pachner_moves": []
+    },
+    {
+      "knot" : "8_21",
+      "pachner_moves": []
+    }
+  ]
+}
