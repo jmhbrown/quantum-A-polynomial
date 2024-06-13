@@ -11,6 +11,7 @@ parser.add_argument('-f', '--file', type=argparse.FileType('r'), help='JSON file
 parser.add_argument('-o', '--output', help='File where output is written.')
 parser.add_argument('-l', '--log_level', default='info', choices=['debug','info','warning','error','critical'],help='Set the logging level.')
 parser.add_argument('-t', '--timeout', default='30', type=int, help='Set the timeout duration in minutes.')
+parser.add_argument('-r', '--randomize', default=0, type=int, help='Number of times we randomize the triangulation then re-compute.')
 
 args = parser.parse_args()
 
@@ -40,16 +41,24 @@ sage.repl.load.load('main.sage',globals())
 
 for run in options["runs"]:
     logger.info("\n\n")
-    logger.info("Running: {0}".format(run))
+    logger.info("---------------------------------\n Running: {0}".format(run))
 
-    signal.alarm(int(60*args.timeout)) # set timeout length.
+    signal.alarm(60*(args.timeout)) # set timeout length.
 
-    try:
-        t = QuantumAPolynomial(run['knot'],run['pachner_moves'])
-        t.compute_skein_module()
-    except TimeoutException:
-        continue
-    else:
-        # reset the alarm
-        signal.alarm(0)
+
+    t = QuantumAPolynomial(run['knot'],run['pachner_moves'])
+    r = args.randomize
+    while r > -1:
+        try:
+            t.compute_skein_module()
+            if r > 0: # set up for the next run
+                t.knot_comp.randomize()
+                logger.info("---------------------------------\n Randomizing then re-running {}".format(run))
+            r += -1
+        except TimeoutException:
+            r += -1
+            continue
+        else:
+            # reset the alarm
+            signal.alarm(0)
 
