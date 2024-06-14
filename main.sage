@@ -8,6 +8,7 @@ class QuantumAPolynomial:
 
         self.knot = knot
         self.pachner_moves = pachner_moves
+        self.gluing_dict = None
 
         self.longitude = None
         self.meridian = None
@@ -426,8 +427,13 @@ class QuantumAPolynomial:
                         face_perm[Integer(local_vertex[-2])],
                         face_perm[Integer(local_vertex[-1])]
                     )
+                    if local_vertex == distant_vertex:
+                        weights = {local_vertex: 0, distant_vertex: 0}
+                    else:
+                        weights = {local_vertex: 1, distant_vertex: -1}
+
                     thread_weights_dict.update({
-                        "x{0}_{1}".format(local_vertex[1:], distant_vertex[1:]) : {local_vertex: 1, distant_vertex: -1}   
+                        "x{0}_{1}".format(local_vertex[1:], distant_vertex[1:]) : weights   
                     })
 
         return thread_weights_dict
@@ -484,8 +490,13 @@ class QuantumAPolynomial:
             this_threads_relations = []
             for vertex,weight in weights_dict[thread].items():
                 tmp_adjacent_edges = QuantumAPolynomial.get_edges_adjacent_to_vertex(vertex,weights_dict)
-                # don't add relations for this thread with itself. 
-                tmp_adjacent_edges.remove(thread)
+                try:
+                    # don't add relations for this thread with itself. 
+                    tmp_adjacent_edges.remove(thread)
+                except ValueError:
+                    # deals with threads that start/stop at a single vertex
+                    pass
+
                 for edge in tmp_adjacent_edges:
                     # commutation relation is the same for all non-thread generators at this vertex.
                     if edge[0] == 'x':
@@ -915,13 +926,37 @@ class QuantumAPolynomial:
                         distant_starting_vertex = [vertex[1:] for vertex,weight in tmp_distant_weights.items() if weight == -1][0]  
                         distant_ending_vertex = [vertex[1:] for vertex,weight in tmp_distant_weights.items() if weight == 1][0]  
 
-                        short_edge_gluing_relations_list.append({
-                            'qrt2' : 1,
-                            short_edge : 1,
-                            'x{0}_{1}'.format(local_starting_vertex,distant_ending_vertex) : 1,
-                            distant_short_edge : 1,
-                            'x{0}_{1}'.format(distant_starting_vertex,local_ending_vertex) : 1
-                        })
+                        # a self-identified long edge gives us two loops instead of one for the short edge relation.
+                        if distant_starting_vertex == local_ending_vertex: 
+                            short_edge_gluing_relations_list.append({
+                                'qrt2' : 1,
+                                short_edge : 1,
+                                distant_short_edge : 1,
+                                'x{0}_{1}'.format(local_starting_vertex,distant_ending_vertex) : 1,
+                            })
+                            #short_edge_gluing_relations_list.append({
+                                #'qrt2' : 1,
+                                #'x{0}_{1}'.format(distant_starting_vertex,local_ending_vertex) : 1
+                            #})
+                        elif local_starting_vertex == distant_ending_vertex:
+                            short_edge_gluing_relations_list.append({
+                                'qrt2' : 1,
+                                short_edge : 1,
+                                distant_short_edge : 1,
+                                'x{0}_{1}'.format(distant_starting_vertex,local_ending_vertex) : 1
+                            })
+                            #short_edge_gluing_relations_list.append({
+                                #'qrt2' : 1,
+                                #'x{0}_{1}'.format(local_starting_vertex,distant_ending_vertex) : 1,
+                            #})
+                        else: # there's no self-folding to worry about here.
+                            short_edge_gluing_relations_list.append({
+                                'qrt2' : 1,
+                                short_edge : 1,
+                                'x{0}_{1}'.format(local_starting_vertex,distant_ending_vertex) : 1,
+                                distant_short_edge : 1,
+                                'x{0}_{1}'.format(distant_starting_vertex,local_ending_vertex) : 1
+                            })
         logger.debug("short_edge_gluing_relations_list:\n{}".format(short_edge_gluing_relations_list))
         return short_edge_gluing_relations_list
 
@@ -949,6 +984,7 @@ class QuantumAPolynomial:
                 threads_list = list(set(threads_list) - set(tmp_monodromy_dict.keys()))
                 if threads_list == list():
                     return list_of_monodromies
+                # we have another loop!
                 th = threads_list[0]
                 tmp_monodromy_dict = {'qrt2':1,th:1}
             else:
@@ -977,6 +1013,7 @@ class QuantumAPolynomial:
     def compute_skein_module(__self__):
         knot_comp = __self__.knot_comp
         num_tet = knot_comp.num_tetrahedra()
+        __self__.gluing_dict = QuantumAPolynomial.get_gluing_dict(knot_comp)
 
         gens_dict = QuantumAPolynomial.get_unglued_gens_dict(knot_comp)
 
@@ -1031,7 +1068,7 @@ class QuantumAPolynomial:
             })
 
         # are there self gluings?
-        tet_gluings = {k:v for k,v in QuantumAPolynomial.get_gluing_dict(knot_comp).items() if k[0] == 'r'}
+        tet_gluings = {k:v for k,v in __self__.gluing_dict.items() if k[0] == 'r'}
         for k,v in tet_gluings.items():
             this_tet = int(k[1:])
             if v.count(this_tet) != 0:
@@ -1110,7 +1147,7 @@ class QuantumAPolynomial:
         for constraint in long_edge_gluing_relations_list:
             lat_coord = QuantumAPolynomial.names_to_lattice_coordinate(constraint,gens_dict)
             if not (lat_coord*weights_matrix).is_zero():
-                logger.error("A gluing relation is not T-invariant or involves non-existant threads! " + str(lat_coord*weights_matrix))
+                logger.error("A gluing relation is not T-invariant!" + str(constraint))
 
 
         short_edge_gluing_relations_list = QuantumAPolynomial.get_short_edge_gluing_relations_list(knot_comp,weights_dict)
@@ -1240,7 +1277,7 @@ class QuantumAPolynomial:
         smith_form = relations_matrix.smith_form()[0]
         for i in range(smith_form.rank()):
             if smith_form[i,i] != 1:
-                logger.warning("We have torsion in the quotient where we didn't expect it! {} != 1".format(smith[i,i]))
+                logger.warning("We have torsion in the quotient where we didn't expect it! {} != 1".format(smith_form[i,i]))
 
         quotient_ring = LaurentPolynomialRing(QQ,['qrt2','M','L'] + ['w{0}'.format(i-3) for i in range(3,quotient_lattice.ngens())]+ ['w{0}i'.format(i-3) for i in range(3,quotient_lattice.ngens())])
         polynomial_ring = PolynomialRing(QQ,['qrt2','M','L'] + ['w{0}'.format(i-3) for i in range(3,quotient_lattice.ngens())]+ ['w{0}i'.format(i-3) for i in range(3,quotient_lattice.ngens())])
@@ -1298,15 +1335,17 @@ class QuantumAPolynomial:
         if A_poly_candidate == 0:
             logger.warning("We have 0 for the A-polynomial!")
         else:
-            logger.info("A-polynomial:\n"+str(A_poly_candidate.factor()))
-
             with open('data/A_crossing/apolys/{}.txt'.format(__self__.knot), 'r') as file:
                 A_ref_string = file.read()
-
 
             A_ref = polynomial_ring(A_ref_string)
             __self__.ref_A_poly = A_ref
             logger.debug("Reference A-poly: {}".format(A_ref))
+
+            logger.info("A-polynomial for {0}, {1}:\t{2}".format(__self__.knot,__self__.gluing_dict,str(A_poly_candidate.factor())))
+
+
+
 
             if A_poly_candidate.reduce([A_ref]) == 0:
                 logger.info("Our A-polynomial is divisible by the reference one!")
