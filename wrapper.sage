@@ -4,7 +4,6 @@
 import argparse
 import logging
 import json
-import signal
 
 parser = argparse.ArgumentParser(description='Compute (quantum!) A-polynomials')
 parser.add_argument('-f', '--file', type=argparse.FileType('r'), help='JSON file with run options.')
@@ -16,17 +15,6 @@ parser.add_argument('-r', '--randomize', default=0, type=int, help='Number of ti
 args = parser.parse_args()
 
 options = json.load(args.file)
-
-# error handling
-
-class TimeoutException(Exception):
-    pass
-
-def timeout_handler(signum, frame): # might only work on unix-based systems?
-    raise TimeoutException
-
-# Change the behavior of SIGALRM
-signal.signal(signal.SIGALRM, timeout_handler)
 
 # Logging
 
@@ -43,7 +31,7 @@ for run in options["runs"]:
     logger.info("\n\n")
     logger.info("---------------------------------\n Running: {0}".format(run))
 
-    signal.alarm(60*(args.timeout)) # set timeout length.
+    alarm(60*(args.timeout)) # set timeout length.
 
 
     t = QuantumAPolynomial(run['knot'],run['pachner_moves'])
@@ -54,11 +42,12 @@ for run in options["runs"]:
             if r > 0: # set up for the next run
                 t.knot_comp.randomize()
                 logger.info("---------------------------------\n Randomizing then re-running {}".format(run))
+                logger.debug("Randomized triangulation: {}".format(QuantumAPolynomial.get_gluing_dict(t.knot_comp)))
             r += -1
-        except TimeoutException:
+        except AlarmInterrupt:
             r += -1
             continue
         else:
             # reset the alarm
-            signal.alarm(0)
+            cancel_alarm()
 
