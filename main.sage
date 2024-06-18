@@ -1056,22 +1056,22 @@ class QuantumAPolynomial:
 
 
 
-    def compute_skein_module(__self__):
-        knot_comp = __self__.knot_comp
-        num_tet = __self__.knot_comp.num_tetrahedra()
-        __self__.gluing_dict = QuantumAPolynomial.get_gluing_dict(__self__.knot_comp)
-        __self__.creased_edges = QuantumAPolynomial.get_creased_edges(__self__.gluing_dict)
-        logger.debug("Gluing dictionary: {}".format(__self__.gluing_dict))
+    def compute_skein_module(self):
+        knot_comp = self.knot_comp
+        num_tet = self.knot_comp.num_tetrahedra()
+        self.gluing_dict = QuantumAPolynomial.get_gluing_dict(self.knot_comp)
+        self.creased_edges = QuantumAPolynomial.get_creased_edges(self.gluing_dict)
+        logger.debug("Gluing dictionary: {}".format(self.gluing_dict))
 
 
 
-        gens_dict = QuantumAPolynomial.get_unglued_gens_dict(__self__.knot_comp)
+        gens_dict = QuantumAPolynomial.get_unglued_gens_dict(self.knot_comp)
 
         # Vertices
 
         # make a basis for the vertices. This will be useful for the weights matrix.
         vertices_dict = {}
-        for t in range(__self__.knot_comp.num_tetrahedra()):
+        for t in range(self.knot_comp.num_tetrahedra()):
             vertices_dict.update(
                 {                       
                     "v{0}01".format(t) : [0]*(12*t) + [1,0,0,0,0,0,0,0,0,0,0,0] + [0]*(12*(num_tet-1-t)),
@@ -1092,7 +1092,7 @@ class QuantumAPolynomial:
 
         # weights for long and short edges (threads are done later.)
         weights_dict = {}
-        for t in range(__self__.knot_comp.num_tetrahedra()):
+        for t in range(self.knot_comp.num_tetrahedra()):
             weights_dict.update({
                 'a{0}01'.format(t) : {'v{0}02'.format(t): 1, 'v{0}03'.format(t): -1},
                 'a{0}02'.format(t) : {'v{0}03'.format(t): 1, 'v{0}01'.format(t): -1},
@@ -1119,13 +1119,13 @@ class QuantumAPolynomial:
 
 
         # Add thread weights to the big weights dictionary.
-        weights_dict.update(QuantumAPolynomial.get_thread_weights_dict(knot_comp,weights_dict))
+        weights_dict.update(QuantumAPolynomial.get_thread_weights_dict(self.knot_comp,weights_dict))
         # expose this as an external variable
-        __self__.weights_dict = weights_dict
+        self.weights_dict = weights_dict
 
         # add threads to the gens_dict
-        QuantumAPolynomial.add_thread_lattice_coordinates(knot_comp,gens_dict,weights_dict)
-        __self__.gens_dict = gens_dict 
+        QuantumAPolynomial.add_thread_lattice_coordinates(self.knot_comp,gens_dict,weights_dict)
+        self.gens_dict = gens_dict 
 
 
 
@@ -1140,8 +1140,8 @@ class QuantumAPolynomial:
                 logger.warning("The thread relations are not skew-symmetric!")
 
 
-        omega_with_q = 1/2*QuantumAPolynomial.get_relations_matrix(knot_comp,gens_dict,weights_dict)
-        __self__.omega_with_q = omega_with_q
+        omega_with_q = 1/2*QuantumAPolynomial.get_relations_matrix(self.knot_comp,gens_dict,weights_dict)
+        self.omega_with_q = omega_with_q
 
         # checking that the keys are in the same order.
         if list(weights_dict.keys()) != list(gens_dict.keys())[1:]:
@@ -1161,18 +1161,18 @@ class QuantumAPolynomial:
 
         ### Get the meridian and longitude
 
-        unordered_meridian = QuantumAPolynomial.get_peripheral_curve_monomial(knot_comp,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='meridian')
+        unordered_meridian = QuantumAPolynomial.get_peripheral_curve_monomial(self.knot_comp,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='meridian')
         meridian =QuantumAPolynomial.order_curve(unordered_meridian,gens_dict,weights_matrix,vertices_dict,omega_with_q)
         meridian[0]=0
-        __self__.meridian = meridian
+        self.meridian = meridian
 
-        unordered_longitude = QuantumAPolynomial.get_peripheral_curve_monomial(knot_comp,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='longitude')
+        unordered_longitude = QuantumAPolynomial.get_peripheral_curve_monomial(self.knot_comp,gens_dict,vertices_dict,weights_dict,weights_matrix,curve='longitude')
         longitude = QuantumAPolynomial.order_curve(unordered_longitude,gens_dict,weights_matrix,vertices_dict,omega_with_q)
         longitude[0]=0
-        __self__.longitude = longitude
+        self.longitude = longitude
 
 
-        T_monodromy_variable_names_list = QuantumAPolynomial.get_T_monodromy_list(knot_comp,gens_dict)
+        T_monodromy_variable_names_list = QuantumAPolynomial.get_T_monodromy_list(self.knot_comp,gens_dict)
         #logger.debug("T_monodromy_variable_names_list:{}".format(T_monodromy_variable_names_list))
         T_monodromy_lattice_coordinate_list = [
             QuantumAPolynomial.names_to_lattice_coordinate(v,gens_dict) for v in T_monodromy_variable_names_list
@@ -1184,7 +1184,7 @@ class QuantumAPolynomial:
 
 
 
-        long_edge_gluing_relations_list = QuantumAPolynomial.get_long_edge_gluing_relations_list(knot_comp,gens_dict)
+        long_edge_gluing_relations_list = QuantumAPolynomial.get_long_edge_gluing_relations_list(self.knot_comp,gens_dict)
         #logger.debug("long_edge_gluing_relations_list:\n"+"\n".join([str(relation) for relation in long_edge_gluing_relations_list]))
 
         # Check that all relations are T-invariant, and incidentally that we've listed actual threads.
@@ -1194,7 +1194,7 @@ class QuantumAPolynomial:
                 logger.error("A gluing relation is not T-invariant!" + str(constraint))
 
 
-        short_edge_gluing_relations_list = QuantumAPolynomial.get_short_edge_gluing_relations_list(knot_comp,weights_dict)
+        short_edge_gluing_relations_list = QuantumAPolynomial.get_short_edge_gluing_relations_list(self.knot_comp,weights_dict)
         #logger.debug("short_edge_gluing_relations_list:\n"+"\n".join([str(relation) for relation in short_edge_gluing_relations_list]))
 
         # Check that all relations are T-invariant, and incidentally that we've listed actual threads.
@@ -1205,10 +1205,10 @@ class QuantumAPolynomial:
         #logger.debug("internal_edge_monodromy_list. These should come in pairs of equal length. \n"+"\n".join([str(relation) for relation in internal_edge_monodromy_list]))
 
 
-        if len(internal_edge_monodromy_list) != 2*knot_comp.num_tetrahedra():
+        if len(internal_edge_monodromy_list) != 2*self.knot_comp.num_tetrahedra():
             # 2t because there are 2t pairs of glued faces, t-1 of which don't increase the genus.
             # so genus is g = 2t - (t-1) = t+1. We're interested in the T-region torus, so g-1 genus is killed using 2(g-1) = 2t constraints.
-            logger.warn("There are {0} internal edge monodromy relations, we expect to have {1} if every face has been glued!".format(len(internal_edge_monodromy_list),2*knot_comp.num_tetrahedra()))
+            logger.warn("There are {0} internal edge monodromy relations, we expect to have {1} if every face has been glued!".format(len(internal_edge_monodromy_list),2*self.knot_comp.num_tetrahedra()))
             
         for constraint in internal_edge_monodromy_list:
             if not (sum([gens_dict[edge] for edge in constraint])*weights_matrix).is_zero():
@@ -1226,7 +1226,7 @@ class QuantumAPolynomial:
             ]
         )
 
-        __self__.quotient_lattice = quotient_lattice
+        self.quotient_lattice = quotient_lattice
 
         pi = quotient_lattice.coerce_map_from(quotient_lattice.V())
 
@@ -1288,7 +1288,7 @@ class QuantumAPolynomial:
             logger.debug("T-invariant lattice is rank: {0}".format(invariant_sublattice.rank()))
 
             # Checks -
-            logger.debug("Including q, the quotient lattice should be rank: {0}. It's rank {1}".format(knot_comp.num_tetrahedra()+2, quotient_lattice.ngens()))
+            logger.debug("Including q, the quotient lattice should be rank: {0}. It's rank {1}".format(self.knot_comp.num_tetrahedra()+2, quotient_lattice.ngens()))
             logger.debug("The T-region quotient lattice has {0} generators.".format(T_region_quotient_lattice.ngens()))
 
             logger.debug("Quotient basis matrix should have determinent 1. Det: {}".format(quotient_basis.det()))
@@ -1310,10 +1310,10 @@ class QuantumAPolynomial:
             + T_monodromy_variable_names_list
             ])
 
-        __self__.internal_edge_monodromy_list = internal_edge_monodromy_list
-        __self__.short_edge_gluing_relations_list = short_edge_gluing_relations_list
-        __self__.long_edge_gluing_relations_list = long_edge_gluing_relations_list
-        __self__.T_monodromy_variable_names_list = T_monodromy_variable_names_list
+        self.internal_edge_monodromy_list = internal_edge_monodromy_list
+        self.short_edge_gluing_relations_list = short_edge_gluing_relations_list
+        self.long_edge_gluing_relations_list = long_edge_gluing_relations_list
+        self.T_monodromy_variable_names_list = T_monodromy_variable_names_list
 
 
         logger.debug("The relations matrix has dimension {0} and rank {1}.".format(relations_matrix.dimensions(),relations_matrix.rank()))
@@ -1326,13 +1326,13 @@ class QuantumAPolynomial:
         quotient_ring = LaurentPolynomialRing(QQ,['qrt2','M','L'] + ['w{0}'.format(i-3) for i in range(3,quotient_lattice.ngens())]+ ['w{0}i'.format(i-3) for i in range(3,quotient_lattice.ngens())])
         polynomial_ring = PolynomialRing(QQ,['qrt2','M','L'] + ['w{0}'.format(i-3) for i in range(3,quotient_lattice.ngens())]+ ['w{0}i'.format(i-3) for i in range(3,quotient_lattice.ngens())])
         quotient_ring.inject_variables()
-        __self__.polynomial_ring=polynomial_ring
+        self.polynomial_ring=polynomial_ring
 
         change_of_basis_matrix = quotient_basis.det()*quotient_basis.inverse()
 
         # make the relations matrix for the quotient
         quotient_omega = Matrix([[(Matrix(v.lift())*omega_with_q*Matrix(w.lift()).transpose())[0,0] for v in quotient_lattice.gens()] for w in quotient_lattice.gens()])
-        __self__.quotient_omega = quotient_omega
+        self.quotient_omega = quotient_omega
 
         logger.debug("quotient_omega is:\n {}".format(quotient_omega))
         if not quotient_omega.is_skew_symmetric():
@@ -1352,7 +1352,7 @@ class QuantumAPolynomial:
         ]
 
         crossing_relations = [quotient_ring('w{0}'.format(i-3))*quotient_ring('w{0}i'.format(i-3))-1 for i in range(3,quotient_lattice.ngens())]
-        for tt in range(knot_comp.num_tetrahedra()):
+        for tt in range(self.knot_comp.num_tetrahedra()):
             specific_crossing_relation = sum([
                 QuantumAPolynomial.lattice_coord_to_ring_element(change_of_basis_matrix*vector(pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
                     for k,v in monomial.items()},gens_dict))),quotient_ring, quotient_omega)
@@ -1365,27 +1365,27 @@ class QuantumAPolynomial:
             #crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
             crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
             
-        __self__.crossing_relations = crossing_relations
+        self.crossing_relations = crossing_relations
 
-        A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*(knot_comp.num_tetrahedra()-1):]]).gens()[0]
-        __self__.A_poly = A_poly_candidate
+        A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*(self.knot_comp.num_tetrahedra()-1):]]).gens()[0]
+        self.A_poly = A_poly_candidate
 
 #        A_poly_candidate = polynomial_ring.ideal(crossing_relations).variety()
         # TODO debugging output to probe the elimination ideal
         if logger.level <= 10:
-            logger.debug("Eliminating: {}".format(polynomial_ring.gens()[-2*(knot_comp.num_tetrahedra()-1):]))
-            #partial_elim_ideal  = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*knot_comp.num_tetrahedra():]]).gens()[0]
-            #logger.debug("I've eliminated everything but {0}: {1}".format(polynomial_ring.gens()[-knot_comp.num_tetrahedra()+1:],partial_elim_ideal))
+            logger.debug("Eliminating: {}".format(polynomial_ring.gens()[-2*(self.knot_comp.num_tetrahedra()-1):]))
+            #partial_elim_ideal  = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*self.knot_comp.num_tetrahedra():]]).gens()[0]
+            #logger.debug("I've eliminated everything but {0}: {1}".format(polynomial_ring.gens()[-self.knot_comp.num_tetrahedra()+1:],partial_elim_ideal))
         if A_poly_candidate == 0:
             logger.warning("We have 0 for the A-polynomial!")
         else:
-            with open('data/A_crossing/apolys/{}.txt'.format(__self__.knot), 'r') as file:
+            with open('data/A_crossing/apolys/{}.txt'.format(self.knot), 'r') as file:
                 A_ref_string = file.read()
 
             A_ref = polynomial_ring(A_ref_string)
-            __self__.ref_A_poly = A_ref
+            self.ref_A_poly = A_ref
             logger.debug("Reference A-poly: {}".format(A_ref))
-            logger.info("A-polynomial for {0}:\t{1}".format(__self__.knot,str(A_poly_candidate.factor())))
+            logger.info("A-polynomial for {0}:\t{1}".format(self.knot,str(A_poly_candidate.factor())))
 
 
 
