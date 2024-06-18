@@ -9,6 +9,7 @@ class QuantumAPolynomial:
         self.knot = knot
         self.pachner_moves = pachner_moves
         self.gluing_dict = None
+        self.creased_edges = []
 
         self.longitude = None
         self.meridian = None
@@ -402,6 +403,43 @@ class QuantumAPolynomial:
                 
         return gluing_dict
 
+    def get_creased_edges(gluing_dict):
+        """
+        Looks for long edges that would be identified with themselves in the triangulation.
+
+        Parameters:
+        __self__ QuantumAPolynomial
+
+        Returns:
+        list[str] long edges that would be identified with themselves.
+        """
+        tet_gluings = {k:v for k,v in gluing_dict.items() if k[0] == 'r'}
+
+        # first find self-glued tets.
+        self_glued_faces = {}
+        for k,v in tet_gluings.items():
+            tet_index = int(k[1:])
+            try:
+                face_a = v.index(tet_index)
+                face_b = v.index(tet_index,face_a + 1)
+            except ValueError:
+                # not self-glued
+                pass
+            else:
+                self_glued_faces.update({tet_index: [face_a,face_b]})
+                logger.warning("Tet {0} is self-glued at faces {1},{2}".format(tet_index, face_a,face_b))
+
+        # next check if any of these have creased long edges
+        creased_edges = []
+        for tet,faces in self_glued_faces.items():
+            if gluing_dict["s{0}{1}".format(tet,faces[0])] == gluing_dict["s{0}{1}".format(tet,faces[1])]:
+                creased_edge_index = [str(x) for x in {0,1,2,3}.difference(set(faces))]
+                creased_edges.append("A{0}{1}".format(tet,"".join(creased_edge_index)))
+                logger.warning("Long edge {0} is self-identified!".format(creased_edges[-1]))
+
+        return creased_edges
+
+
     # This could be more beautiful.
     def get_thread_weights_dict(knot_comp,weights_dict):
         """
@@ -428,7 +466,8 @@ class QuantumAPolynomial:
                         face_perm[Integer(local_vertex[-1])]
                     )
                     if local_vertex == distant_vertex:
-                        weights = {local_vertex: 0, distant_vertex: 0}
+                        pass
+                        #weights = {local_vertex: 0, distant_vertex: 0}
                     else:
                         weights = {local_vertex: 1, distant_vertex: -1}
 
@@ -859,9 +898,12 @@ class QuantumAPolynomial:
         """
 
         long_edge_gluing_relations_list = []
+        # finds loops that start/end at a single vertex
+        thread_finder_filter = lambda th : th[0] == 'x'
+        loop_thread_filter = lambda th : th[1:].split('_')[0] != th[1:].split('_')[1]
         
         # threads have names starting with the letter 'x'
-        threads_list = list(filter(lambda gen : gen[0] == 'x',gens_dict.keys()))
+        threads_list = list(filter(loop_thread_filter,filter(thread_finder_filter,gens_dict.keys())))
         th = threads_list[0]
         tmp_gluing_dict = {th:-1}
         
@@ -969,8 +1011,11 @@ class QuantumAPolynomial:
         if they cross themselves or something this probably won't work."""
         
         list_of_monodromies = []
+        loop_thread_filter = lambda th : th[1:].split('_')[0] != th[1:].split('_')[1]
+        thread_finder_filter = lambda th : th[0] == 'x'
         
-        threads_list = [k for k in gens_dict.keys() if k[0] == 'x']
+        #threads_list = [k for k in gens_dict.keys() if k[0] == 'x']
+        threads_list = list(filter(loop_thread_filter,filter(thread_finder_filter,gens_dict.keys())))
         th = threads_list[0]
         tmp_monodromy_dict = {'qrt2':1,th:1}
 
@@ -1010,18 +1055,23 @@ class QuantumAPolynomial:
         return {index_sort_map(k) : dictionary[k] for k in dictionary.keys() if k[0] == 'A'} | {k : v for k,v in dictionary.items() if k[0] != 'A'}
 
 
+
     def compute_skein_module(__self__):
         knot_comp = __self__.knot_comp
-        num_tet = knot_comp.num_tetrahedra()
-        __self__.gluing_dict = QuantumAPolynomial.get_gluing_dict(knot_comp)
+        num_tet = __self__.knot_comp.num_tetrahedra()
+        __self__.gluing_dict = QuantumAPolynomial.get_gluing_dict(__self__.knot_comp)
+        __self__.creased_edges = QuantumAPolynomial.get_creased_edges(__self__.gluing_dict)
+        logger.debug("Gluing dictionary: {}".format(__self__.gluing_dict))
 
-        gens_dict = QuantumAPolynomial.get_unglued_gens_dict(knot_comp)
+
+
+        gens_dict = QuantumAPolynomial.get_unglued_gens_dict(__self__.knot_comp)
 
         # Vertices
 
         # make a basis for the vertices. This will be useful for the weights matrix.
         vertices_dict = {}
-        for t in range(knot_comp.num_tetrahedra()):
+        for t in range(__self__.knot_comp.num_tetrahedra()):
             vertices_dict.update(
                 {                       
                     "v{0}01".format(t) : [0]*(12*t) + [1,0,0,0,0,0,0,0,0,0,0,0] + [0]*(12*(num_tet-1-t)),
@@ -1042,7 +1092,7 @@ class QuantumAPolynomial:
 
         # weights for long and short edges (threads are done later.)
         weights_dict = {}
-        for t in range(knot_comp.num_tetrahedra()):
+        for t in range(__self__.knot_comp.num_tetrahedra()):
             weights_dict.update({
                 'a{0}01'.format(t) : {'v{0}02'.format(t): 1, 'v{0}03'.format(t): -1},
                 'a{0}02'.format(t) : {'v{0}03'.format(t): 1, 'v{0}01'.format(t): -1},
@@ -1067,12 +1117,6 @@ class QuantumAPolynomial:
                 'A{0}23'.format(t) : {'v{0}23'.format(t): 1, 'v{0}32'.format(t): 1},
             })
 
-        # are there self gluings?
-        tet_gluings = {k:v for k,v in __self__.gluing_dict.items() if k[0] == 'r'}
-        for k,v in tet_gluings.items():
-            this_tet = int(k[1:])
-            if v.count(this_tet) != 0:
-                logger.warning("Tet {0} is self-glued!".format(this_tet))
 
         # Add thread weights to the big weights dictionary.
         weights_dict.update(QuantumAPolynomial.get_thread_weights_dict(knot_comp,weights_dict))
@@ -1341,8 +1385,7 @@ class QuantumAPolynomial:
             A_ref = polynomial_ring(A_ref_string)
             __self__.ref_A_poly = A_ref
             logger.debug("Reference A-poly: {}".format(A_ref))
-
-            logger.info("A-polynomial for {0}, {1}:\t{2}".format(__self__.knot,__self__.gluing_dict,str(A_poly_candidate.factor())))
+            logger.info("A-polynomial for {0}:\t{1}".format(__self__.knot,str(A_poly_candidate.factor())))
 
 
 
