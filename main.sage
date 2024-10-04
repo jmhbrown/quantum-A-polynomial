@@ -13,7 +13,7 @@ class QuantumAPolynomial:
         self.meridian = None
         self.omega_with_q = None
         self.quotient_omega = None
-        self.crossing_relations = []
+        self.classical_crossing_relations = []
         self.quotient_lattice = None
         self.polynomial_ring=None
 
@@ -21,6 +21,11 @@ class QuantumAPolynomial:
         self.short_edge_gluing_relations_list = None 
         self.long_edge_gluing_relations_list = None 
         self.T_monodromy_variable_names_list = None 
+        self.monomial_relations = None
+        self.crossing_relations = None
+
+        self.weights_matrix = None
+        self.invariant_sublattice = None
 
         self.A_poly = None
         self.ref_A_poly = None
@@ -1139,13 +1144,13 @@ class QuantumAPolynomial:
 
     def compute_skein_module(self):
 
-
-
-
         lattice = FreeModule(ZZ, len(self.gens_dict['qrt2']))
 
         weights_matrix = QuantumAPolynomial.get_weights_matrix(self.vertices_dict,self.weights_dict)
+        self.weights_matrix = weights_matrix
         invariant_sublattice = weights_matrix.left_kernel()
+        self.invariant_sublattice = invariant_sublattice
+        
 
 
         ### Get the meridian and longitude
@@ -1205,14 +1210,17 @@ class QuantumAPolynomial:
 
         # ## Quotient Lattice
 
-        # Take the quotient!
-        quotient_lattice = invariant_sublattice.quotient(
-            [QuantumAPolynomial.names_to_lattice_coordinate(v,self.gens_dict) for v in
+        # list of relations
+        self.monomial_relations =    [QuantumAPolynomial.names_to_lattice_coordinate(v,self.gens_dict) for v in
             internal_edge_monodromy_list
             + short_edge_gluing_relations_list
             + long_edge_gluing_relations_list
             + T_monodromy_variable_names_list
             ]
+
+        # Take the quotient!
+        quotient_lattice = invariant_sublattice.quotient(
+                self.monomial_relations
         )
 
         self.quotient_lattice = quotient_lattice
@@ -1339,8 +1347,13 @@ class QuantumAPolynomial:
             {'qrt2':1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
             {'qrt2':-1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
         ]
+        all_crossing_relations = [
+                [ QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in generic_crossing_relation ]
+                for tt in range(self.knot_comp.num_tetrahedra())
+        ]
+        self.crossing_relations = all_crossing_relations
 
-        crossing_relations = [quotient_ring('w{0}'.format(i-3))*quotient_ring('w{0}i'.format(i-3))-1 for i in range(3,quotient_lattice.ngens())]
+        classical_crossing_relations = [quotient_ring('w{0}'.format(i-3))*quotient_ring('w{0}i'.format(i-3))-1 for i in range(3,quotient_lattice.ngens())]
         for tt in range(self.knot_comp.num_tetrahedra()):
             specific_crossing_relation = sum([
                 QuantumAPolynomial.lattice_coord_to_ring_element(change_of_basis_matrix*vector(pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
@@ -1351,19 +1364,19 @@ class QuantumAPolynomial:
             logger.debug("Relation for tetrahedron {0}: {1}".format(tt,specific_crossing_relation))
 
             # TODO - change this to avoid using clear_denominator.
-            #crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
-            crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
+            #classical_crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
+            classical_crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
             
-        self.crossing_relations = crossing_relations
+        self.classical_crossing_relations = classical_crossing_relations
 
-        A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*(self.knot_comp.num_tetrahedra()-1):]]).gens()[0]
+        A_poly_candidate = polynomial_ring.ideal(classical_crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*(self.knot_comp.num_tetrahedra()-1):]]).gens()[0]
         self.A_poly = A_poly_candidate
 
-#        A_poly_candidate = polynomial_ring.ideal(crossing_relations).variety()
+#        A_poly_candidate = polynomial_ring.ideal(classical_crossing_relations).variety()
         # TODO debugging output to probe the elimination ideal
         if logger.level <= 10:
             logger.debug("Eliminating: {}".format(polynomial_ring.gens()[-2*(self.knot_comp.num_tetrahedra()-1):]))
-            #partial_elim_ideal  = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*self.knot_comp.num_tetrahedra():]]).gens()[0]
+            #partial_elim_ideal  = polynomial_ring.ideal(classical_crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*self.knot_comp.num_tetrahedra():]]).gens()[0]
             #logger.debug("I've eliminated everything but {0}: {1}".format(polynomial_ring.gens()[-self.knot_comp.num_tetrahedra()+1:],partial_elim_ideal))
         if A_poly_candidate == 0:
             logger.warning("We have 0 for the A-polynomial!")

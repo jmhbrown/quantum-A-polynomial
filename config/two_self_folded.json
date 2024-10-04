@@ -1,0 +1,19 @@
+{
+  "runs": [
+    {
+      "knot" : "4_1",
+      "pachner_moves": [
+        {"tet": 0, "face": 3},
+        {"tet": 1, "face": 0},
+        {"tet": 0, "face": 2}
+      ]
+    },
+    {
+      "knot" : "3_1",
+      "pachner_moves": [
+        {"tet": 0, "face": 3},
+        {"tet": 1, "face": 1}
+      ]
+    }
+  ]
+}
