@@ -622,7 +622,7 @@ class QuantumAPolynomial:
                     # deals with threads that start/stop at a single vertex
                     pass
 
-                logger.debug("edges adjacent to {0} at {1}:  {2}".format(thread,vertex,tmp_adjacent_edges))
+                #logger.debug("edges adjacent to {0} at {1}:  {2}".format(thread,vertex,tmp_adjacent_edges))
                 for edge in tmp_adjacent_edges:
                     # commutation relations depend on both weights and the relative directions of approach.
                     if edge[0] == 'x':
@@ -990,7 +990,7 @@ class QuantumAPolynomial:
         # finds loops that start/end at a single vertex
         thread_finder_filter = lambda th : th[0] == 'x'
         loop_thread_filter = lambda th : th[1:].split('_')[0] != th[1:].split('_')[1]
-        
+
         # threads have names starting with the letter 'x'
         threads_list = list(filter(loop_thread_filter,filter(thread_finder_filter,gens_dict.keys())))
         th = threads_list[0]
@@ -1103,10 +1103,11 @@ class QuantumAPolynomial:
         loop_thread_filter = lambda th : th[1:].split('_')[0] != th[1:].split('_')[1]
         thread_finder_filter = lambda th : th[0] == 'x'
         
+        
         #threads_list = [k for k in gens_dict.keys() if k[0] == 'x']
         threads_list = list(filter(loop_thread_filter,filter(thread_finder_filter,gens_dict.keys())))
         th = threads_list[0]
-        tmp_monodromy_dict = {'qrt2':1,th:1}
+        tmp_monodromy_dict = {th:1}
 
         while threads_list:
             th_end_vertex = th[1:].split('_')[1]
@@ -1117,14 +1118,35 @@ class QuantumAPolynomial:
                 list_of_monodromies.append(tmp_monodromy_dict)
                 threads_list = list(set(threads_list) - set(tmp_monodromy_dict.keys()))
                 if threads_list == list():
-                    return list_of_monodromies
+                    break
                 # we have another loop!
                 th = threads_list[0]
-                tmp_monodromy_dict = {'qrt2':1,th:1}
+                tmp_monodromy_dict = {th:1}
             else:
                 tmp_monodromy_dict.update({next_thread:1})
                 th = next_thread
         
+        # set the q-powers. the thread monodromies come in pairs that should have opposite powers of q.
+        import itertools
+        partnered_monodromies = []
+        for m1, m2 in itertools.combinations(list_of_monodromies,2):
+            # don't recheck a monodromy once we've found its partner
+            if partnered_monodromies.count(m1) + partnered_monodromies.count(m2) > 0:
+                pass
+            else:
+                # pick any thread in the monodromy, take the first index number
+                tester_thread = [k for k in m1.keys() if k[0] == 'x'][0].split('_')[0]
+                # swap the last two digits. the matching thread is at the other end of a long edge.
+                swapped_tester_thread = tester_thread[:-2]+tester_thread[-1]+tester_thread[-2]
+                matches = [k for k in m2.keys() if k.split('_')[0] == swapped_tester_thread]
+                if len(matches) > 0:
+                    m1.update({'qrt2':-1})
+                    m2.update({'qrt2': 1})
+                    logger.debug("Paired thread monodromies:{0},\t{1}".format(m1,m2))
+                    partnered_monodromies.append(m1)
+                    partnered_monodromies.append(m2)
+
+        return list_of_monodromies
 
     def fix_long_edge_indices(dictionary):
         """
