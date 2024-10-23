@@ -622,10 +622,13 @@ class QuantumAPolynomial:
                     # deals with threads that start/stop at a single vertex
                     pass
 
+                logger.debug("edges adjacent to {0} at {1}:  {2}".format(thread,vertex,tmp_adjacent_edges))
                 for edge in tmp_adjacent_edges:
-                    # commutation relation is the same for all non-thread generators at this vertex.
+                    # commutation relations depend on both weights and the relative directions of approach.
                     if edge[0] == 'x':
                         this_threads_relations.append(weight*gens_dict[edge])
+                    elif edge[0] == 'A':
+                        this_threads_relations.append(-1*gens_dict[edge])
                     else:
                         this_threads_relations.append(-weight*gens_dict[edge])
             thread_relations.append(sum(this_threads_relations))
