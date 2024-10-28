@@ -626,6 +626,7 @@ class QuantumAPolynomial:
                 for edge in tmp_adjacent_edges:
                     # commutation relations depend on both weights and the relative directions of approach.
                     if edge[0] == 'x':
+                        #this_threads_relations.append(gens_dict[edge])
                         this_threads_relations.append(weight*gens_dict[edge])
                     elif edge[0] == 'A':
                         this_threads_relations.append(-1*gens_dict[edge])
@@ -967,7 +968,7 @@ class QuantumAPolynomial:
         short_edge_names = list(filter(lambda name: name[0]=='a', gens_dict.keys()))
         T_monodromy_list = []
         for p in range(num_tet*4):
-            T_monodromy_list.append({'qrt2':1} | {k:1 for k in short_edge_names[3*p:3*p+3]})
+            T_monodromy_list.append({'qrt2':0} | {k:1 for k in short_edge_names[3*p:3*p+3]})
         
         return T_monodromy_list
 
@@ -1060,7 +1061,7 @@ class QuantumAPolynomial:
                         # a self-identified long edge gives us two loops instead of one for the short edge relation.
                         if distant_starting_vertex == local_ending_vertex: 
                             short_edge_gluing_relations_list.append({
-                                'qrt2' : 1,
+                                'qrt2' : -2,
                                 short_edge : 1,
                                 distant_short_edge : 1,
                                 'x{0}_{1}'.format(local_starting_vertex,distant_ending_vertex) : 1,
@@ -1071,7 +1072,7 @@ class QuantumAPolynomial:
                             #})
                         elif local_starting_vertex == distant_ending_vertex:
                             short_edge_gluing_relations_list.append({
-                                'qrt2' : 1,
+                                'qrt2' : -2,
                                 short_edge : 1,
                                 distant_short_edge : 1,
                                 'x{0}_{1}'.format(distant_starting_vertex,local_ending_vertex) : 1
@@ -1082,7 +1083,7 @@ class QuantumAPolynomial:
                             #})
                         else: # there's no self-folding to worry about here.
                             short_edge_gluing_relations_list.append({
-                                'qrt2' : 1,
+                                'qrt2' : -2,
                                 short_edge : 1,
                                 'x{0}_{1}'.format(local_starting_vertex,distant_ending_vertex) : 1,
                                 distant_short_edge : 1,
@@ -1092,7 +1093,7 @@ class QuantumAPolynomial:
         return short_edge_gluing_relations_list
 
 
-    def get_internal_edge_monodromy(gens_dict):
+    def get_internal_edge_monodromy(gens_dict,num_factors=True,mirror_pairs=False):
         """Constructs expressions for the T-region monodromies around the 'extra handles'
         on the glued surface.
         
@@ -1127,24 +1128,35 @@ class QuantumAPolynomial:
                 th = next_thread
         
         # set the q-powers. the thread monodromies come in pairs that should have opposite powers of q.
-        import itertools
-        partnered_monodromies = []
-        for m1, m2 in itertools.combinations(list_of_monodromies,2):
-            # don't recheck a monodromy once we've found its partner
-            if partnered_monodromies.count(m1) + partnered_monodromies.count(m2) > 0:
-                pass
-            else:
-                # pick any thread in the monodromy, take the first index number
-                tester_thread = [k for k in m1.keys() if k[0] == 'x'][0].split('_')[0]
-                # swap the last two digits. the matching thread is at the other end of a long edge.
-                swapped_tester_thread = tester_thread[:-2]+tester_thread[-1]+tester_thread[-2]
-                matches = [k for k in m2.keys() if k.split('_')[0] == swapped_tester_thread]
-                if len(matches) > 0:
-                    m1.update({'qrt2':-1})
-                    m2.update({'qrt2': 1})
-                    logger.debug("Paired thread monodromies:{0},\t{1}".format(m1,m2))
-                    partnered_monodromies.append(m1)
-                    partnered_monodromies.append(m2)
+        if mirror_pairs:
+            import itertools
+            partnered_monodromies = []
+            for m1, m2 in itertools.combinations(list_of_monodromies,2):
+                # don't recheck a monodromy once we've found its partner
+                if partnered_monodromies.count(m1) + partnered_monodromies.count(m2) > 0:
+                    pass
+                else:
+                    # pick any thread in the monodromy, take the first index number
+                    tester_thread = [k for k in m1.keys() if k[0] == 'x'][0].split('_')[0]
+                    # swap the last two digits. the matching thread is at the other end of a long edge.
+                    swapped_tester_thread = tester_thread[:-2]+tester_thread[-1]+tester_thread[-2]
+                    matches = [k for k in m2.keys() if k.split('_')[0] == swapped_tester_thread]
+                    if len(matches) > 0:
+                        m1.update({'qrt2':-1})
+                        m2.update({'qrt2': 1})
+                        logger.debug("Paired thread monodromies:{0},\t{1}".format(m1,m2))
+                        logger.debug("Their differences:\n {0}".format(QuantumAPolynomial.names_to_lattice_coordinate(m1,gens_dict)-QuantumAPolynomial.names_to_lattice_coordinate(m2,gens_dict)))
+                        partnered_monodromies.append(m1)
+                        partnered_monodromies.append(m2)
+        else:
+            for m in list_of_monodromies:
+                m.update({'qrt2':0})
+
+        if num_factors:
+            for m in list_of_monodromies:
+                tmp_threads = [k for k in m.keys() if k[0] == 'x']
+                tmp_q_pow = m.get('qrt2',0)
+                m.update({'qrt2':tmp_q_pow - len(tmp_threads)})
 
         return list_of_monodromies
 
@@ -1243,6 +1255,33 @@ class QuantumAPolynomial:
             + T_monodromy_variable_names_list
             ]
 
+        self.internal_edge_monodromy_list = internal_edge_monodromy_list
+        self.short_edge_gluing_relations_list = short_edge_gluing_relations_list
+        self.long_edge_gluing_relations_list = long_edge_gluing_relations_list
+        self.T_monodromy_variable_names_list = T_monodromy_variable_names_list
+
+        # find the identified long edge groups and take the product:
+        for th_m in internal_edge_monodromy_list:
+            this_thread_le = []
+            for le in long_edge_gluing_relations_list:
+                if set(le.keys()).intersection(set(th_m.keys())) != set():
+                    this_thread_le.append(le)
+            logger.debug("The monodromy\n {0} \n with coordinate \n{1}\n has associated long edges\n {2} with total coordinate {3}".format(th_m,QuantumAPolynomial.names_to_lattice_coordinate(th_m,self.gens_dict),this_thread_le,sum([vector(QuantumAPolynomial.names_to_lattice_coordinate(le,self.gens_dict)) for le in this_thread_le])))
+
+        generic_crossing_relation = [ # this equals 1 and was found by hand
+            {'qrt2':1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
+            {'qrt2':-1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
+        ]
+        all_crossing_relations = [
+                [ QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in generic_crossing_relation ]
+                for tt in range(self.knot_comp.num_tetrahedra())
+        ]
+        self.crossing_relations = all_crossing_relations
+        
+        #for le in long_edge_gluing_relations_list:
+            #logger.debug("Long edge:\n {0}\n has coordinate\n {1}".format(le,QuantumAPolynomial.names_to_lattice_coordinate(le,self.gens_dict)))
+
+
         # Take the quotient!
         quotient_lattice = invariant_sublattice.quotient(
                 self.monomial_relations
@@ -1332,13 +1371,8 @@ class QuantumAPolynomial:
             + T_monodromy_variable_names_list
             ])
 
-        self.internal_edge_monodromy_list = internal_edge_monodromy_list
-        self.short_edge_gluing_relations_list = short_edge_gluing_relations_list
-        self.long_edge_gluing_relations_list = long_edge_gluing_relations_list
-        self.T_monodromy_variable_names_list = T_monodromy_variable_names_list
 
-
-        logger.debug("The relations matrix has dimension {0} and rank {1}.".format(relations_matrix.dimensions(),relations_matrix.rank()))
+        #logger.debug("The relations matrix has dimension {0} and rank {1}.".format(relations_matrix.dimensions(),relations_matrix.rank()))
 
         smith_form = relations_matrix.smith_form()[0]
         for i in range(smith_form.rank()):
@@ -1368,15 +1402,6 @@ class QuantumAPolynomial:
 
         qrt2 = quotient_ring('qrt2')
 
-        generic_crossing_relation = [ # this equals 1 and was found by hand
-            {'qrt2':1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
-            {'qrt2':-1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
-        ]
-        all_crossing_relations = [
-                [ QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in generic_crossing_relation ]
-                for tt in range(self.knot_comp.num_tetrahedra())
-        ]
-        self.crossing_relations = all_crossing_relations
 
         classical_crossing_relations = [quotient_ring('w{0}'.format(i-3))*quotient_ring('w{0}i'.format(i-3))-1 for i in range(3,quotient_lattice.ngens())]
         for tt in range(self.knot_comp.num_tetrahedra()):
