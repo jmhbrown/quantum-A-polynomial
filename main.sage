@@ -968,7 +968,7 @@ class QuantumAPolynomial:
         short_edge_names = list(filter(lambda name: name[0]=='a', gens_dict.keys()))
         T_monodromy_list = []
         for p in range(num_tet*4):
-            T_monodromy_list.append({'qrt2':0} | {k:1 for k in short_edge_names[3*p:3*p+3]})
+            T_monodromy_list.append({'qrt2':1} | {k:1 for k in short_edge_names[3*p:3*p+3]})
         
         return T_monodromy_list
 
@@ -1040,6 +1040,7 @@ class QuantumAPolynomial:
         """
         gluing_data = QuantumAPolynomial.get_gluing_dict(knot_comp)
         short_edge_gluing_relations_list = []
+        qrt2_power = 1
         
         for tet in range(knot_comp.num_tetrahedra()):
             for face in range(4):
@@ -1061,7 +1062,7 @@ class QuantumAPolynomial:
                         # a self-identified long edge gives us two loops instead of one for the short edge relation.
                         if distant_starting_vertex == local_ending_vertex: 
                             short_edge_gluing_relations_list.append({
-                                'qrt2' : -2,
+                                'qrt2' : qrt2_power,
                                 short_edge : 1,
                                 distant_short_edge : 1,
                                 'x{0}_{1}'.format(local_starting_vertex,distant_ending_vertex) : 1,
@@ -1072,7 +1073,7 @@ class QuantumAPolynomial:
                             #})
                         elif local_starting_vertex == distant_ending_vertex:
                             short_edge_gluing_relations_list.append({
-                                'qrt2' : -2,
+                                'qrt2' : qrt2_power,
                                 short_edge : 1,
                                 distant_short_edge : 1,
                                 'x{0}_{1}'.format(distant_starting_vertex,local_ending_vertex) : 1
@@ -1083,7 +1084,7 @@ class QuantumAPolynomial:
                             #})
                         else: # there's no self-folding to worry about here.
                             short_edge_gluing_relations_list.append({
-                                'qrt2' : -2,
+                                'qrt2' : qrt2_power,
                                 short_edge : 1,
                                 'x{0}_{1}'.format(local_starting_vertex,distant_ending_vertex) : 1,
                                 distant_short_edge : 1,
@@ -1093,7 +1094,7 @@ class QuantumAPolynomial:
         return short_edge_gluing_relations_list
 
 
-    def get_internal_edge_monodromy(gens_dict,num_factors=True,mirror_pairs=False):
+    def get_internal_edge_monodromy(gens_dict,num_factors=False,mirror_pairs=True):
         """Constructs expressions for the T-region monodromies around the 'extra handles'
         on the glued surface.
         
