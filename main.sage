@@ -1274,8 +1274,8 @@ class QuantumAPolynomial:
             #logger.debug("The monodromy\n {0} \n with coordinate \n{1}\n has associated long edges\n {2} with total coordinate {3}".format(th_m,QuantumAPolynomial.names_to_lattice_coordinate(th_m,self.gens_dict),this_thread_le,sum([vector(QuantumAPolynomial.names_to_lattice_coordinate(le,self.gens_dict)) for le in this_thread_le])))
 
         generic_crossing_relation = [ # this equals 1 and was found by hand
-            {'qrt2':1-4-1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
-            {'qrt2':-1-4+1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
+            {'qrt2':1+4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
+            {'qrt2':-1+4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
         ]
         all_crossing_relations = [
                 [ QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in generic_crossing_relation ]
@@ -1452,7 +1452,7 @@ class QuantumAPolynomial:
                 if A_poly_candidate.reduce([A_ref.subs({polynomial_ring('L'): polynomial_ring('-L')})]) == 0:
                     logger.info("After changing L to -L our A-polynomial is divisible by the reference one!")
                 else:
-                    logger.error("Our A-polynomial has a complicated relationship with the reference one!")
+                    logger.error("Our A-polynomial has a complicated relationship with the reference one: {}".format(self.ref_A_poly))
 
         return A_poly_candidate
 
