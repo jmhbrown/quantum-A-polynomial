@@ -225,9 +225,15 @@ class QuantumAPolynomial:
             
                 tmp_scalar_power -= (matrix(leading_factor)*relations*matrix(trailing_terms).transpose())[0]
 
-        #q_power = vector(list(tmp_scalar_power) + [0]*(dim-1)) 
+        # match with the g algebra code
+        second_version = (-1)*sum(flatten([
+                [
+                    coord[i]*coord[j]*relations[i,j] for i in range(j-1)
+                ] for j in range(len(coord))
+            ]))
+        q_power = vector(list(second_version) + [0]*(dim-1)) 
         #logger.debug("The q_power is {}".format(q_power))
-        scaled_coord = vector(coord)# + vector(q_power)
+        scaled_coord = vector(coord) + vector(q_power)
         return reduce(the_ring.product, [term[0]**term[1] for term in zip(the_ring.gens(),scaled_coord)])
 
     def product_from_lattice_coordinates(*coords, relations=matrix.identity(3), gens_dict={'qrt2':(2,0,0),'A':(0,1,0),'a':(0,0,1)}):
@@ -1180,6 +1186,64 @@ class QuantumAPolynomial:
 
 
 
+    def get_alg_element_from_coord(coord,alg,relations=None,double=False,qq_override_value=None):
+        """
+        Converts from an exponent to a monomial. Assumes that 
+        
+        Parameters:
+        coord vector -  This should be in terms of the generators of alg.
+            If the (possibily doubled) length is more than the number of generators,
+            then this assumes that the first coordinate is tje q power.
+        alg algebra - needs product and gens methods
+        relations (default: None) - relations matrix for the algebra, if it's not commutative.
+        double (default: True) - double the coordinate to deal with inverses
+        qq_override_value (default: None) - if this is set then override the default value (alg.base().gen()) for qq
+
+        """
+
+        # find q-conversion
+        if relations == None:
+            conversion_vector = vector([0]*len(coord))
+        else:
+            conversion_q_factor = (-1)*sum(flatten([
+                [
+                    coord[i]*coord[j]*relations[i,j] for i in range(j-1)
+                ] for j in range(len(coord))
+            ]))
+
+            conversion_vector = vector([conversion_q_factor] + [0]*(len(coord)-1))
+
+        # deal with the case that inverses are handled as extra variables. 
+        if double:
+            if len(tmp_coord) == alg.ngens(): 
+                pos = vector([max(coord[i],0) for i in range(len(coord))])
+                neg = vector([min(coord[i],0) for i in range(len(coord))])
+
+                tmp_coord = conversion_vector + vector(list(pos) + list(neg))
+            else:
+                pos = vector([max(coord[i],0) for i in range(1,len(coord))])
+                neg = vector([min(coord[i],0) for i in range(1,len(coord))])
+
+                tmp_coord = conversion_vector + vector([coord[0]] + list(pos) + list(neg))
+        # don't worry about inverses
+        else:
+            tmp_coord = conversion_vector + vector(coord)
+            print('tmp_coord: ',tmp_coord)
+
+        # use the base ring generator as q.
+        if qq_override_value == None:
+            qq = alg.base().gen()
+        else:
+            qq = qq_override_value
+
+    
+        if len(tmp_coord) == alg.ngens():
+            monomial = reduce(alg.product,[alg.gen(i)^tmp_coord[i] for i in range(len(tmp_coord)) if tmp_coord[i] != 0])
+        else:
+            monomial = reduce(alg.product,[alg.gen(i-1)^tmp_coord[i] for i in range(1,len(tmp_coord)) if tmp_coord[i] != 0])
+
+        return qq^tmp_coord[0]*monomial
+
     def compute_skein_module(self):
 
         lattice = FreeModule(ZZ, len(self.gens_dict['qrt2']))
@@ -1455,35 +1519,3 @@ class QuantumAPolynomial:
                     logger.error("Our A-polynomial has a complicated relationship with the reference one: {}".format(self.ref_A_poly))
 
         return A_poly_candidate
-
-    # ### Different bases for the quotient lattice (scratch!)
-
-
-
-    def get_A_polynomial_using_basis(knot_comp,basis_matrix,gens_dict,print_steps=True):
-        generic_crossing_relation = [ # this equals 1.
-            {'qrt2':1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
-            {'qrt2':-1, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
-        ]
-        tmp_change_of_basis_matrix = basis_matrix.det()*basis_matrix.inverse()
-        crossing_relations = []
-        for tt in range(knot_comp.num_tetrahedra()):
-            specific_crossing_relation = sum([
-                QuantumAPolynomial.lattice_coord_to_ring_element(tmp_change_of_basis_matrix*vector(pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
-                    for k,v in monomial.items()},gens_dict))),polynomial_ring, quotient_omega) 
-                        for monomial in generic_crossing_relation
-            ]).subs({polynomial_ring('qrt2'):-1})+1
-            crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
-        
-        
-        A_poly_candidate = polynomial_ring.ideal(crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-knot_comp.num_tetrahedra()+1:]]).gens()[0]
-        
-        if print_steps:
-            print("Relations:\n",crossing_relations)
-            print("A-polynomial:\n",A_poly_candidate.factor())
-            
-        return A_poly_candidate
-        
-        
-    #A = QuantumAPolynomial.get_A_polynomial_using_basis(test_basis,gens_dict)
-
