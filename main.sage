@@ -1180,6 +1180,26 @@ class QuantumAPolynomial:
 
         return list_of_monodromies
 
+    def find_paired_thread_monodromies(list_of_monodromies):
+        
+        import itertools
+        partnered_monodromies = []
+        for m1, m2 in itertools.combinations(list_of_monodromies,2):
+            # don't recheck a monodromy once we've found its partner
+            if flatten(partnered_monodromies).count(m1) + flatten(partnered_monodromies).count(m2) > 0:
+                pass
+            else:
+                # pick any thread in the monodromy, take the first index number
+                tester_thread = [k for k in m1.keys() if k[0] == 'x'][0].split('_')[0]
+                # swap the last two digits. the matching thread is at the other end of a long edge.
+                swapped_tester_thread = tester_thread[:-2]+tester_thread[-1]+tester_thread[-2]
+                matches = [k for k in m2.keys() if k.split('_')[0] == swapped_tester_thread]
+                if len(matches) > 0:
+                    partnered_monodromies.append((m1,m2))
+
+        return partnered_monodromies
+
+
     def fix_long_edge_indices(dictionary):
         """
         Fixes the indices on the long edge names in a dictionary.
@@ -1318,17 +1338,27 @@ class QuantumAPolynomial:
 
     def compute_skein_module(self):
 
-        lattice = FreeModule(ZZ, len(self.gens_dict['qrt2']))
+        # find the weights matrix and T-invariant lattice
+        self.weights_matrix = QuantumAPolynomial.get_weights_matrix(self.vertices_dict,self.weights_dict)
 
-        weights_matrix = QuantumAPolynomial.get_weights_matrix(self.vertices_dict,self.weights_dict)
-        self.weights_matrix = weights_matrix
-        invariant_sublattice = weights_matrix.left_kernel()
-        self.invariant_sublattice = invariant_sublattice
 
+
+        ### Build the central quotient.
+        
+        # Get the central relations
         QuantumAPolynomial.setup_central_relations(self)
-        self.internal_edge_monodromy_list = QuantumAPolynomial.get_internal_edge_monodromy(self)
-
         to_vec = lambda name : QuantumAPolynomial.names_to_lattice_coordinate(name,self.gens_dict)
+
+        self.internal_edge_monodromy_list = QuantumAPolynomial.get_internal_edge_monodromy(self)
+        self.thread_monomials = matrix([
+            to_vec(name) for name in self.internal_edge_monodromy_list
+            ])
+
+        self.paired_thread_monodromies = QuantumAPolynomial.find_paired_thread_monodromies(self.internal_edge_monodromy_list)
+        for m1,m2 in self.paired_thread_monodromies:
+            if self.omega_with_q*(vector(to_vec(m1))-vector(to_vec(m2))) != 0:
+                logger.warning("Thread monodromy difference isn't central: {}")
+
         self.monomial_relations = block_matrix([
                 [matrix([to_vec(name) for name in self.internal_edge_monodromy_list])],
                 [matrix([to_vec(name) for name in self.short_edge_gluing_relations_list])],
@@ -1336,46 +1366,90 @@ class QuantumAPolynomial:
                 [matrix([to_vec(name) for name in self.T_monodromy_variable_names_list])]
                 ])
 
-        ### Get the meridian and longitude
+        self.central_relations = block_matrix([
+                [matrix([to_vec(name) for name in self.short_edge_gluing_relations_list])],
+                [matrix([to_vec(name) for name in self.long_edge_gluing_relations_list])],
+                [matrix([to_vec(name) for name in self.T_monodromy_variable_names_list])]
+                #[matrix([to_vec(m1)-to_vec(m2) for m1,m2 in self.paired_thread_monodromies])]
+                ])
 
-        unordered_meridian = QuantumAPolynomial.get_peripheral_curve_monomial(self.knot_comp,self.gens_dict,self.vertices_dict,self.weights_dict,weights_matrix,curve='meridian')
-        meridian =QuantumAPolynomial.order_curve(unordered_meridian,self.gens_dict,weights_matrix,self.vertices_dict,self.omega_with_q)
-        meridian[0]=0
-        self.meridian = meridian
-
-        unordered_longitude = QuantumAPolynomial.get_peripheral_curve_monomial(self.knot_comp,self.gens_dict,self.vertices_dict,self.weights_dict,weights_matrix,curve='longitude')
-        longitude = QuantumAPolynomial.order_curve(unordered_longitude,self.gens_dict,weights_matrix,self.vertices_dict,self.omega_with_q)
-        longitude[0]=0
-        self.longitude = longitude
-
-
-
-        generic_crossing_relation = [ # this equals 1 and was found by hand
-            {'qrt2':1+4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
-            {'qrt2':-1+4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
-        ]
-        all_crossing_relations = [
-                [ QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in generic_crossing_relation ]
-                for tt in range(self.knot_comp.num_tetrahedra())
-        ]
-        self.crossing_relations = all_crossing_relations
         
+        # Get the meridian and longitude
+
+        unordered_meridian = QuantumAPolynomial.get_peripheral_curve_monomial(self.knot_comp,self.gens_dict,self.vertices_dict,self.weights_dict,self.weights_matrix,curve='meridian')
+        self.meridian =QuantumAPolynomial.order_curve(unordered_meridian,self.gens_dict,self.weights_matrix,self.vertices_dict,self.omega_with_q)
+        # TODO - what do I want the q-power to be? Probably set it in the g-algebra, not here?
+
+        unordered_longitude = QuantumAPolynomial.get_peripheral_curve_monomial(self.knot_comp,self.gens_dict,self.vertices_dict,self.weights_dict,self.weights_matrix,curve='longitude')
+        self.longitude = QuantumAPolynomial.order_curve(unordered_longitude,self.gens_dict,self.weights_matrix,self.vertices_dict,self.omega_with_q)
+        # TODO - what do I want the q-power to be? Probably set it in the g-algebra, not here?
+
+        ## Choose a custom basis for the invariant sublattice
+
+        # remove the q-power before putting vectors in the quotient.
+        strip_q = lambda coord: vector([0] + list(coord[1:]))
+        unordered_invariant_sublattice = self.weights_matrix.left_kernel()
+        invariant_center = (unordered_invariant_sublattice.basis_matrix()*self.omega_with_q).right_kernel().intersection(unordered_invariant_sublattice)
+        #logger.debug("invariant lattice: {}".format(unordered_invariant_sublattice))
+        #logger.debug("invariant_center: {}".format(invariant_center))
+
+        new_basis = [self.gens_dict['qrt2'],strip_q(self.meridian),strip_q(self.longitude)] 
+
+        # first thread monodromy, then the other monomial relations, then whatever's needed to fill out the lattice.
+        inv_rank = unordered_invariant_sublattice.rank()
+        while span(new_basis).rank() < inv_rank:
+            for vec in invariant_center.basis() +  unordered_invariant_sublattice.basis():
+            #for vec in self.thread_monomials.rows() + unordered_invariant_sublattice.basis():
+                if strip_q(vec) not in span(new_basis):
+                    new_basis.append(strip_q(vec))
+
+        self.invariant_sublattice = unordered_invariant_sublattice.submodule_with_basis(new_basis)
+
+
+        logger.debug("central_relations rank: {}".format(self.central_relations.rank()))
+
+        center_of_relations = invariant_center.intersection(self.monomial_relations.row_space())
+
+        central_quotient = self.invariant_sublattice.quotient(center_of_relations)
+        logger.debug("central quotient: {}".format(central_quotient))
+        #logger.debug("intersection's quotient by central relations {}".format(center_of_relations.quotient(self.central_relations.row_space()   )))
+        #logger.debug("center's quotient by central relations: {}".format(invariant_center.quotient(invariant_center.intersection(self.central_relations.row_space()))))
+        #logger.debug("center's quotient by center of all monomial relations: {}".format(invariant_center.quotient(center_of_relations)))
 
         # Take the quotient!
-        self.quotient_lattice = invariant_sublattice.quotient(
-                self.monomial_relations
-        )
-        logger.debug("monomial relation q-values:\n{}".format(self.monomial_relations.columns()[0]))
+        #self.quotient_lattice = self.invariant_sublattice.quotient(
+                #self.central_relations
+        #)
+
+        self.quotient_lattice = central_quotient
+        # checking in on torsion - we don't expect to have any, I think.
+        self.invariants = self.quotient_lattice.invariants(include_ones=True)
+        logger.debug("Invariants of the quotient: {}".format(self.quotient_lattice.invariants(include_ones=True)))
+        for g in self.quotient_lattice.gens():
+            if g.additive_order() < sage.rings.infinity.PlusInfinity():
+                logger.warning("Torison element in the quotient! {}".format(QuantumAPolynomial.lattice_coord_to_dict(g.lift(),self.gens_dict)))
+
 
         self.pi = self.quotient_lattice.coerce_map_from(self.quotient_lattice.V())
+        ordered_quotient_lattice_gens = []
+
+        for v in self.invariant_sublattice.basis():
+            if not self.quotient_lattice.submodule([self.pi(v)]).is_submodule(self.quotient_lattice.submodule(ordered_quotient_lattice_gens)):
+                ordered_quotient_lattice_gens.append(self.pi(v))
+
+        #logger.debug("ordered basis for quotient:\n{}".format(ordered_quotient_lattice_gens))
+        logger.debug("thread monomials in quotient: {}".format([self.pi(v) for v in self.thread_monomials.rows()]))
+        logger.debug("q-values of quotient generators: {}".format([g.lift()[0] for g in self.quotient_lattice.gens()]))
+
+        logger.debug("monomial relation q-values:\n{}".format(self.monomial_relations.columns()[0]))
 
 
-        # Next build the quotient basis!
+        # Next build the quotient basis! (OLD VERSION)
         
         
         T_region_basis = matrix([
-            self.pi(self.gens_dict['qrt2']), self.pi(meridian),
-            self.pi(longitude)
+            self.pi(self.gens_dict['qrt2']), self.pi(strip_q(self.meridian)),
+            self.pi(strip_q(self.longitude))
             ])
 
         logger.debug("pi(qrt2): {}".format(self.pi(self.gens_dict['qrt2'])))
@@ -1409,6 +1483,19 @@ class QuantumAPolynomial:
         quotient_basis = block_matrix([[T_region_basis],[new_rows]]).transpose()
         logger.debug("quotient basis:\n{0}".format(quotient_basis))
 
+
+
+
+        generic_crossing_relation = [ # this equals 1 and was found by hand
+            {'qrt2':1+4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
+            {'qrt2':-1+4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
+        ]
+        all_crossing_relations = [
+                [ QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in generic_crossing_relation ]
+                for tt in range(self.knot_comp.num_tetrahedra())
+        ]
+        self.crossing_relations = all_crossing_relations
+
         # Checks -
         if self.knot_comp.num_tetrahedra()+2 != self.quotient_lattice.ngens():
             logger.warning("Including q, the quotient lattice should be rank: {0}. It's rank {1}".format(self.knot_comp.num_tetrahedra()+2, self.quotient_lattice.ngens()))
@@ -1417,18 +1504,10 @@ class QuantumAPolynomial:
 
         if logger.level <= 10:
             non_long_edge_generators = list(filter(lambda gen : gen[0] != 'A',self.gens_dict.keys()))
-            non_long_edge_lattice = Matrix([self.gens_dict[gen] for gen in non_long_edge_generators]).row_module().intersection(invariant_sublattice)
+            non_long_edge_lattice = Matrix([self.gens_dict[gen] for gen in non_long_edge_generators]).row_module().intersection(self.invariant_sublattice)
 
-            logger.debug("Full lattice rank: {0}".format(lattice.rank()))
-            #logger.debug("T-region (short-edges + threads) sublattice of that is rank: {0}".format(non_long_edge_lattice.intersection(lattice).rank()))
-            logger.debug("T-invariant lattice is rank: {0}".format(invariant_sublattice.rank()))
-
-
-
-        smith_form = self.relations_matrix.smith_form()[0]
-        for i in range(smith_form.rank()):
-            if smith_form[i,i] != 1:
-                logger.warning("We have torsion in the quotient where we didn't expect it! {} != 1".format(smith_form[i,i]))
+            logger.debug("Full lattice rank: {0}".format(len(self.gens_dict)))
+            logger.debug("T-invariant lattice is rank: {0}".format(self.invariant_sublattice.rank()))
 
         quotient_ring = LaurentPolynomialRing(QQ,
                                               ['qrt2','M','L']
