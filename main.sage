@@ -15,6 +15,7 @@ class QuantumAPolynomial:
         self.quotient_omega = None
         self.classical_crossing_relations = []
         self.quotient_lattice = None
+        self.ordered_quotient_lattice_gens = None
         self.pi = None
         self.polynomial_ring=None
 
@@ -1431,15 +1432,27 @@ class QuantumAPolynomial:
 
 
         self.pi = self.quotient_lattice.coerce_map_from(self.quotient_lattice.V())
-        ordered_quotient_lattice_gens = []
+        ordered_quotient_lattice_gens = [self.pi(self.gens_dict['qrt2']),self.pi(strip_q(self.meridian)),self.pi(strip_q(self.longitude))]
+
+        thread_gens = []
+        for v in self.thread_monomials:
+            if not self.quotient_lattice.submodule([self.pi(v)]).is_submodule(self.quotient_lattice.submodule(thread_gens+ordered_quotient_lattice_gens)):
+                thread_gens.append(self.pi(v))
+
+        ordered_quotient_lattice_gens += thread_gens
+            
 
         for v in self.invariant_sublattice.basis():
             if not self.quotient_lattice.submodule([self.pi(v)]).is_submodule(self.quotient_lattice.submodule(ordered_quotient_lattice_gens)):
                 ordered_quotient_lattice_gens.append(self.pi(v))
 
+        self.ordered_quotient_lattice_gens = ordered_quotient_lattice_gens
+
         #logger.debug("ordered basis for quotient:\n{}".format(ordered_quotient_lattice_gens))
         logger.debug("thread monomials in quotient: {}".format([self.pi(v) for v in self.thread_monomials.rows()]))
         logger.debug("q-values of quotient generators: {}".format([g.lift()[0] for g in self.quotient_lattice.gens()]))
+        
+        #self.quotient_lattice = self.quotient_lattice.sublattice(ordered_quotient_lattice_gens)
 
         logger.debug("monomial relation q-values:\n{}".format(self.monomial_relations.columns()[0]))
 
@@ -1487,8 +1500,8 @@ class QuantumAPolynomial:
 
 
         generic_crossing_relation = [ # this equals 1 and was found by hand
-            {'qrt2':1+4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
-            {'qrt2':-1+4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
+            {'qrt2':4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
+            {'qrt2':4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
         ]
         all_crossing_relations = [
                 [ QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in generic_crossing_relation ]
