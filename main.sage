@@ -200,7 +200,7 @@ class QuantumAPolynomial:
         
         return dict_form
 
-    def lattice_coord_to_ring_element(coord,the_ring,relations):
+    def lattice_coord_to_ring_element(coord,the_ring,omega):
         """
         Turns a lattice coordinate into a ring element.
         Assumes that the coordinate and the_ring.gens() use the same order.
@@ -218,19 +218,10 @@ class QuantumAPolynomial:
 
         dim = len(vector(ZZ,coord))
         tmp_scalar_power = 0
-        for i in range(dim):
-            if not (coord[i].is_zero() or vector(coord[i+1:]).is_zero()):
-                leading_factor = vector([0]*dim)
-                leading_factor[i] = coord[i]
-                trailing_terms = vector([0]*dim)
-                trailing_terms[i+1:] = coord[i+1:]
-            
-                tmp_scalar_power -= (matrix(leading_factor)*relations*matrix(trailing_terms).transpose())[0]
-
         # match with the g algebra code
         second_version = (-1)*sum(flatten([
                 [
-                    coord[i]*coord[j]*relations[i,j] for i in range(j-1)
+                    coord[i]*coord[j]*omega[i,j] for i in range(j)
                 ] for j in range(len(coord))
             ]))
         q_power = vector(list(second_version) + [0]*(dim-1)) 
@@ -1506,13 +1497,28 @@ class QuantumAPolynomial:
 
 
         generic_crossing_relation = [ # this equals 1 and was found by hand
-            {'qrt2':4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
-            {'qrt2':4, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
+            {'qrt2':4+1-2, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
+            {'qrt2':4-1+2, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
         ]
         all_crossing_relations = [
                 [ QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in generic_crossing_relation ]
                 for tt in range(self.knot_comp.num_tetrahedra())
         ]
+         
+
+        crossing_lhs = [ # this equals A13*A02 and was found by hand
+            {'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
+            {'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
+        ]
+        crossing_rhs = {'A{t}13':-1, 'A{t}02':-1}
+
+        for tt in range(self.knot_comp.num_tetrahedra()):
+            this_crossing_lhs = [QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in crossing_lhs]
+            this_crossing_rhs = QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in crossing_rhs.items()},self.gens_dict)
+            logger.debug("q-scaling factors for tetrahedra {0}: {1}, {2}".format(tt, -this_crossing_rhs*self.omega_with_q*matrix(this_crossing_lhs[0]).transpose(), -this_crossing_rhs*self.omega_with_q*matrix(this_crossing_lhs[1]).transpose()))
+        
+
+
         self.crossing_relations = all_crossing_relations
 
         # Checks -
@@ -1537,7 +1543,7 @@ class QuantumAPolynomial:
         #quotient_ring.inject_variables()
         self.polynomial_ring=polynomial_ring
 
-        change_of_basis_matrix = quotient_basis.det()*quotient_basis.inverse()
+        change_of_basis_matrix = quotient_basis.inverse()
 
         # make the relations matrix for the quotient
         quotient_omega = Matrix([
@@ -1559,6 +1565,8 @@ class QuantumAPolynomial:
         qrt2 = quotient_ring('qrt2')
 
 
+
+        # include inverses in the crossing relations list
         classical_crossing_relations = [quotient_ring('w{0}'.format(i-3))*quotient_ring('w{0}i'.format(i-3))-1 for i in range(3,self.quotient_lattice.ngens())]
         for tt in range(self.knot_comp.num_tetrahedra()):
             specific_crossing_relation = sum([
