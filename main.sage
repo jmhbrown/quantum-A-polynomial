@@ -1378,14 +1378,14 @@ class QuantumAPolynomial:
         # Get the meridian and longitude
 
         unordered_meridian = QuantumAPolynomial.get_peripheral_curve_monomial(self.knot_comp,self.gens_dict,self.vertices_dict,self.weights_dict,self.weights_matrix,curve='meridian')
-        q_meridian_scaling = sum([abs(v) for v in unordered_meridian.values()]) + unordered_meridian.get('qrt2',0)
+        q_meridian_scaling = sum([-abs(v) for v in unordered_meridian.values()]) + unordered_meridian.get('qrt2',0)
         unordered_meridian['qrt2'] = q_meridian_scaling
         self.meridian =QuantumAPolynomial.names_to_lattice_coordinate(unordered_meridian,self.gens_dict)
         logger.debug("Ordered Meridian: {}".format(self.meridian))
         # TODO - what do I want the q-power to be? Probably set it in the g-algebra, not here?
 
         unordered_longitude = QuantumAPolynomial.get_peripheral_curve_monomial(self.knot_comp,self.gens_dict,self.vertices_dict,self.weights_dict,self.weights_matrix,curve='longitude')
-        q_longitude_scaling = sum([abs(v) for v in unordered_longitude.values()]) + unordered_longitude.get('qrt2',0)
+        q_longitude_scaling = sum([-abs(v) for v in unordered_longitude.values()]) + unordered_longitude.get('qrt2',0)
         unordered_longitude['qrt2'] = q_longitude_scaling
         self.longitude = QuantumAPolynomial.names_to_lattice_coordinate(unordered_longitude,self.gens_dict)
         logger.debug("Ordered Longitude: {}".format(self.longitude))
