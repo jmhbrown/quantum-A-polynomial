@@ -1018,7 +1018,7 @@ class QuantumAPolynomial:
             threads_list = list(set(threads_list) - set(tmp_gluing_dict.keys()))
             
             if threads_list == list():
-                logger.debug("long_edge_gluing_relations_list:\n{}".format(long_edge_gluing_relations_list))
+                #logger.debug("long_edge_gluing_relations_list:\n{}".format(long_edge_gluing_relations_list))
                 return long_edge_gluing_relations_list
             else:
                 # on to the next one
@@ -1089,7 +1089,7 @@ class QuantumAPolynomial:
                                 distant_short_edge : 1,
                                 'x{0}_{1}'.format(distant_starting_vertex,local_ending_vertex) : 1
                             })
-        logger.debug("short_edge_gluing_relations_list:\n{}".format(short_edge_gluing_relations_list))
+        #logger.debug("short_edge_gluing_relations_list:\n{}".format(short_edge_gluing_relations_list))
         return short_edge_gluing_relations_list
 
 
@@ -1211,7 +1211,7 @@ class QuantumAPolynomial:
 
 
 
-    def get_alg_element_from_coord(coord,alg,relations=None,double=False,qq_override_value=None):
+    def get_alg_element_from_coord(coord,alg,relations=None,double=True,q_override_value=None):
         """
         Converts from an exponent to a monomial. Assumes that 
         
@@ -1226,48 +1226,40 @@ class QuantumAPolynomial:
 
         """
 
+        # use the base ring generator as q.
+        if q_override_value == None:
+            qq = alg.base().gen()
+        else:
+            qq = q_override_value
+
+        # special handling for scalars
+        if max(coord[1:]) == min(coord[1:]) == 0:
+            return qq^coord[0]
+
         # find q-conversion
         if relations == None:
-            conversion_vector = vector([0]*len(coord))
+            conversion_q_factor = 0
         else:
             conversion_q_factor = (-1)*sum(flatten([
                 [
-                    coord[i]*coord[j]*relations[i,j] for i in range(j-1)
+                    coord[i]*coord[j]*relations[i,j] for i in range(j)
                 ] for j in range(len(coord))
             ]))
 
-            conversion_vector = vector([conversion_q_factor] + [0]*(len(coord)-1))
 
         # deal with the case that inverses are handled as extra variables. 
         if double:
-            if len(tmp_coord) == alg.ngens(): 
-                pos = vector([max(coord[i],0) for i in range(len(coord))])
-                neg = vector([min(coord[i],0) for i in range(len(coord))])
-
-                tmp_coord = conversion_vector + vector(list(pos) + list(neg))
-            else:
-                pos = vector([max(coord[i],0) for i in range(1,len(coord))])
-                neg = vector([min(coord[i],0) for i in range(1,len(coord))])
-
-                tmp_coord = conversion_vector + vector([coord[0]] + list(pos) + list(neg))
+            tmp_coord = vector(flatten([ [max(coord[i],0), -min(coord[i],0)] for i in range(1,len(coord))]))
         # don't worry about inverses
         else:
-            tmp_coord = conversion_vector + vector(coord)
-            print('tmp_coord: ',tmp_coord)
-
-        # use the base ring generator as q.
-        if qq_override_value == None:
-            qq = alg.base().gen()
-        else:
-            qq = qq_override_value
+            tmp_coord = vector(coord)
 
     
-        if len(tmp_coord) == alg.ngens():
-            monomial = reduce(alg.product,[alg.gen(i)^tmp_coord[i] for i in range(len(tmp_coord)) if tmp_coord[i] != 0])
-        else:
-            monomial = reduce(alg.product,[alg.gen(i-1)^tmp_coord[i] for i in range(1,len(tmp_coord)) if tmp_coord[i] != 0])
+        #factors = [alg.gen(i-1)^tmp_coord[i] for i in range(1,len(tmp_coord)) if tmp_coord[i] != 0]
 
-        return qq^tmp_coord[0]*monomial
+        monomial = reduce(alg.product,[alg.gen(i)^tmp_coord[i] for i in range(len(tmp_coord)) if tmp_coord[i] != 0])
+
+        return qq^(coord[0]+conversion_q_factor)*monomial
 
     def setup_central_relations(self):
         T_monodromy_variable_names_list = QuantumAPolynomial.get_T_monodromy_list(self.knot_comp,self.gens_dict)
@@ -1327,6 +1319,75 @@ class QuantumAPolynomial:
         self.T_monodromy_variable_names_list = T_monodromy_variable_names_list
 
 
+    def build_g_algebra(quotient_lattice,quotient_omega,q_override_value=None):
+        S = FractionField(QQ['qrt2'])
+        if q_override_value != None:
+            qrt2 = q_override_value
+        else:
+            qrt2 = S.gen()
+
+        ngens = quotient_lattice.ngens()
+
+        doubled_quotient_omega = (quotient_omega[1:,1:]).tensor_product(Matrix([[1,-1],[-1,1]]))
+
+        #A = FreeAlgebra(S,2*ngens-1,['M','L']+['x{}'.format(i) for i in range(ngens-3)]+['Mi','Li']+['xi{}'.format(i) for i in range(ngens-3)])
+        A = FreeAlgebra(S,2*ngens-2,['M','Mi','L','Li']+flatten([['x{}'.format(i),'xi{}'.format(i)] for i in range(ngens-3)]))
+        A_gens_dict  = {A.gen(i) : [0]*(i) + [1] + [0]*(A.ngens()-i-1) for i in range(A.ngens())}
+
+        import itertools
+        relations = {}
+        for g2,g1 in itertools.combinations(A_gens_dict.keys(),2):
+            power = (matrix(A_gens_dict[g2])*doubled_quotient_omega*(matrix(A_gens_dict[g1]).transpose()))[0][0]
+            if power != 0:
+                relations[g1*g2] = qrt2**int(-power)*g2*g1
+
+        return A.g_algebra(relations)
+
+
+
+    def get_bulk_relations_in_g_algebra(self,q_override_value=None):
+
+        if q_override_value != None:
+            qrt2 = q_override_value
+        else:
+            qrt2 = self.H.base().gen()
+
+        generic_bulk_relation = [ # this was found by hand. its morally 0 = q^(3/2) A13 A02 + q^(3/2) A03 A12 + q^(5/2) A01 A23
+            {'qrt2':4+1-2, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
+            {'qrt2':4-1+2, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1},
+            {'qrt2':3}
+        ]
+
+        self.bulk_relations = [
+                [ QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in generic_bulk_relation ]
+                for tt in range(self.knot_comp.num_tetrahedra())
+        ]
+         
+
+        # Checks -
+        if logger.level <= 10: # check commutation relations
+            bulk_lhs = [ # this equals A13*A02 and was found by hand
+                {'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
+                {'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
+            ]
+            bulk_rhs = {'A{t}13':-1, 'A{t}02':-1}
+
+            for tt in range(self.knot_comp.num_tetrahedra()):
+                this_bulk_lhs = [QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in bulk_lhs]
+                this_bulk_rhs = QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in bulk_rhs.items()},self.gens_dict)
+                logger.debug("q-scaling factors for tetrahedra {0}: {1}, {2}".format(tt, -this_bulk_rhs*self.omega_with_q*matrix(this_bulk_lhs[0]).transpose(), -this_bulk_rhs*self.omega_with_q*matrix(this_bulk_lhs[1]).transpose()))
+
+
+        g_algebra_crossing_relations = [
+                reduce(self.H.summation,[
+                           QuantumAPolynomial.get_alg_element_from_coord(self.quotient_basis.solve_left(vector(self.pi(mon))),self.H,relations=self.quotient_omega,double=True)
+                           for mon in relation ]
+                       ) for relation in self.bulk_relations
+                ]
+
+        return g_algebra_crossing_relations
+
+
 
     def compute_skein_module(self):
 
@@ -1357,6 +1418,11 @@ class QuantumAPolynomial:
                 [matrix([to_vec(name) for name in self.long_edge_gluing_relations_list])],
                 [matrix([to_vec(name) for name in self.T_monodromy_variable_names_list])]
                 ])
+
+        if logger.level <= 10:
+            logger.debug("monomial relation q-values:\n{}".format(self.monomial_relations.columns()[0]))
+
+            logger.debug("Full lattice rank: {0}".format(len(self.gens_dict)))
 
         self.central_relations = block_matrix([
                 [matrix([to_vec(name) for name in self.short_edge_gluing_relations_list])],
@@ -1402,137 +1468,80 @@ class QuantumAPolynomial:
                     new_basis.append(strip_q(vec))
 
         self.invariant_sublattice = unordered_invariant_sublattice.submodule_with_basis(new_basis)
+        logger.debug("T-invariant lattice is rank: {0}".format(self.invariant_sublattice.rank()))
 
 
         logger.debug("central_relations rank: {}".format(self.central_relations.rank()))
 
+        # Take the quotient!
         center_of_relations = invariant_center.intersection(self.monomial_relations.row_space())
 
-        central_quotient = self.invariant_sublattice.quotient(center_of_relations)
-        logger.debug("central quotient: {}".format(central_quotient))
+        self.quotient_lattice = self.invariant_sublattice.quotient(center_of_relations)
+        self.pi = self.quotient_lattice.coerce_map_from(self.quotient_lattice.V())
+        logger.debug("quotient: {}".format(self.quotient_lattice))
         #logger.debug("intersection's quotient by central relations {}".format(center_of_relations.quotient(self.central_relations.row_space()   )))
         #logger.debug("center's quotient by central relations: {}".format(invariant_center.quotient(invariant_center.intersection(self.central_relations.row_space()))))
         #logger.debug("center's quotient by center of all monomial relations: {}".format(invariant_center.quotient(center_of_relations)))
 
-        # Take the quotient!
-        #self.quotient_lattice = self.invariant_sublattice.quotient(
-                #self.central_relations
-        #)
 
-        self.quotient_lattice = central_quotient
+
         # checking in on torsion - we don't expect to have any, I think.
-        self.invariants = self.quotient_lattice.invariants(include_ones=True)
-        logger.debug("Invariants of the quotient: {}".format(self.quotient_lattice.invariants(include_ones=True)))
+        self.invariants = self.quotient_lattice.invariants()
         for g in self.quotient_lattice.gens():
             if g.additive_order() < sage.rings.infinity.PlusInfinity():
                 logger.warning("Torison element in the quotient! {}".format(QuantumAPolynomial.lattice_coord_to_dict(g.lift(),self.gens_dict)))
 
 
-        self.pi = self.quotient_lattice.coerce_map_from(self.quotient_lattice.V())
-        ordered_quotient_lattice_gens = [self.pi(self.gens_dict['qrt2']),self.pi(strip_q(self.meridian)),self.pi(strip_q(self.longitude))]
-
-        thread_gens = []
-        for v in self.thread_monomials:
-            if not self.quotient_lattice.submodule([self.pi(v)]).is_submodule(self.quotient_lattice.submodule(thread_gens+ordered_quotient_lattice_gens)):
-                thread_gens.append(self.pi(v))
-
-        ordered_quotient_lattice_gens += thread_gens
-            
-
-        for v in self.invariant_sublattice.basis():
-            if not self.quotient_lattice.submodule([self.pi(v)]).is_submodule(self.quotient_lattice.submodule(ordered_quotient_lattice_gens)):
-                ordered_quotient_lattice_gens.append(self.pi(v))
-
-        self.ordered_quotient_lattice_gens = ordered_quotient_lattice_gens
-
-        #logger.debug("ordered basis for quotient:\n{}".format(ordered_quotient_lattice_gens))
+        logger.debug("In the quotient: \n qrt2 = {0}\n M = {1} \n L = {2}".format(self.pi(self.gens_dict['qrt2']), self.pi(self.meridian), self.pi(self.longitude)))
         logger.debug("thread monomials in quotient: {}".format([self.pi(v) for v in self.thread_monomials.rows()]))
-        logger.debug("q-values of quotient generators: {}".format([g.lift()[0] for g in self.quotient_lattice.gens()]))
-        
-        #self.quotient_lattice = self.quotient_lattice.sublattice(ordered_quotient_lattice_gens)
 
-        logger.debug("monomial relation q-values:\n{}".format(self.monomial_relations.columns()[0]))
-
-
-        # Next build the quotient basis! (OLD VERSION)
-        
-        
-        T_region_basis = matrix([
-            self.pi(self.gens_dict['qrt2']), self.pi(strip_q(self.meridian)),
-            self.pi(strip_q(self.longitude))
+        # make the relations matrix for the quotient
+        self.quotient_omega = Matrix([
+            [(Matrix(v.lift())*self.omega_with_q*Matrix(w.lift()).transpose())[0,0] for v in self.quotient_lattice.gens()]
+            for w in self.quotient_lattice.gens()
             ])
 
-        logger.debug("pi(qrt2): {}".format(self.pi(self.gens_dict['qrt2'])))
-
-        T_region_minor_indexes = [(i,j,k)
-                for i in range(T_region_basis.ncols())
-                for j in range(i+1,T_region_basis.ncols())
-                for k in range(j+1,T_region_basis.ncols())
-                ]
-
-        minors = T_region_basis.minors(3)
-        non_zero_minors = {}
-        #logger.debug("minors: {0}".format(minors))
-        #TODO: What does it mean for us to need a negative minor?.
-        for i in range(len(minors)):
-            if minors[i] == 1 or minors[i] == -1: # we only need one minor
-                non_zero_rows = set(range(T_region_basis.ncols()))-set(T_region_minor_indexes[i])
-                #logger.debug("non_zero_rows: {0}".format(non_zero_rows))
-                num_new_rows = len(non_zero_rows)
-                non_zero_entries = zip(range(num_new_rows),non_zero_rows)
-                new_rows = zero_matrix(ZZ,nrows=num_new_rows, ncols=T_region_basis.ncols())
-                for entry in non_zero_entries:
-                    new_rows[entry] = 1
-                break
-            # store all non-zero minors in case we need to use extended Euclidean algorithm.
-            if minors[i] != 0: 
-                # TODO - implement this using xgcd.
-                non_zero_minors.update({T_region_minor_indexes[i]:minors[i]})
-
-
-        quotient_basis = block_matrix([[T_region_basis],[new_rows]]).transpose()
-        logger.debug("quotient basis:\n{0}".format(quotient_basis))
-
-
-
-
-        generic_crossing_relation = [ # this equals 1 and was found by hand
-            {'qrt2':4+1-2, 'A{t}13':-1, 'A{t}02':-1, 'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
-            {'qrt2':4-1+2, 'A{t}13':-1, 'A{t}02':-1, 'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
-        ]
-        all_crossing_relations = [
-                [ QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in generic_crossing_relation ]
-                for tt in range(self.knot_comp.num_tetrahedra())
-        ]
-         
-
-        crossing_lhs = [ # this equals A13*A02 and was found by hand
-            {'A{t}03':1, 'a{t}32':1, 'a{t}01':1, 'A{t}12':1, 'a{t}23':1, 'a{t}10':1},
-            {'A{t}01':1, 'a{t}03':-1,'a{t}12':-1, 'A{t}23':1, 'a{t}21':-1, 'a{t}30':-1}
-        ]
-        crossing_rhs = {'A{t}13':-1, 'A{t}02':-1}
-
-        for tt in range(self.knot_comp.num_tetrahedra()):
-            this_crossing_lhs = [QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in monomial.items()},self.gens_dict) for monomial in crossing_lhs]
-            this_crossing_rhs = QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v for k,v in crossing_rhs.items()},self.gens_dict)
-            logger.debug("q-scaling factors for tetrahedra {0}: {1}, {2}".format(tt, -this_crossing_rhs*self.omega_with_q*matrix(this_crossing_lhs[0]).transpose(), -this_crossing_rhs*self.omega_with_q*matrix(this_crossing_lhs[1]).transpose()))
+        self.H = QuantumAPolynomial.build_g_algebra(self.quotient_lattice,self.quotient_omega,q_override_value=None)
+        logger.debug("g_algebra: {}".format(self.H))
         
+        alg_gens = [QuantumAPolynomial.get_alg_element_from_coord(vector(g),self.H,relations=self.quotient_omega) for g in self.quotient_lattice.gens()]
+        logger.debug("lattice generators in g algebra: {}".format(alg_gens))
+        alg_inv_gens = [QuantumAPolynomial.get_alg_element_from_coord(-vector(g),self.H,relations=self.quotient_omega) for g in self.quotient_lattice.gens()]
+        logger.debug("inverse lattice generators in g algebra: {}".format(alg_inv_gens))
+    
+        self.inverse_relations = [alg_gens[1:][i]*alg_inv_gens[1:][i] -1 for i in range(self.quotient_lattice.ngens()-1)]
+        logger.debug("inverse_relations: {}".format(self.inverse_relations))
+
+        logger.debug("thread monomials in g algebra: {}".format([QuantumAPolynomial.get_alg_element_from_coord(vector(self.pi(mon)),self.H,relations=self.quotient_omega) for mon in self.thread_monomials.rows() ]))
+        tmp_thread_variables_list = []
+        
+        g_alg_mon_variables = lambda mon : [mon.parent()(g) for g in mon.parent().free_algebra()(str(mon.lm())).variables()]
+        #str_to_alg = lambda s, alg: alg(alg.free_algebra()(s))
+        for mon in self.thread_monomials.rows():
+            tmp_thread_variables_list += g_alg_mon_variables(QuantumAPolynomial.get_alg_element_from_coord(vector(self.pi(mon)),self.H,relations=self.quotient_omega))
+
+        self.thread_monodromy_variables = set(tmp_thread_variables_list)
+        logger.debug("thread_monodromy_variables: {}".format(self.thread_monodromy_variables))
+        self.dummy_gens = [g for g in self.H.gens() if str(g)[0] == 'x' and g not in self.thread_monodromy_variables]
 
 
-        self.crossing_relations = all_crossing_relations
+        self.quotient_basis = matrix([vector(g) for g in self.quotient_lattice.gens()]) 
+        logger.debug("quotient basis:\n{}".format(self.quotient_basis))
 
-        # Checks -
-        if self.knot_comp.num_tetrahedra()+2 != self.quotient_lattice.ngens():
-            logger.warning("Including q, the quotient lattice should be rank: {0}. It's rank {1}".format(self.knot_comp.num_tetrahedra()+2, self.quotient_lattice.ngens()))
-        if quotient_basis.det() != 1:
-            logger.warning("Quotient basis matrix should have determinent 1. Det: {}".format(quotient_basis.det()))
+        self.bulk_relations_in_alg = QuantumAPolynomial.get_bulk_relations_in_g_algebra(self)
+        logger.debug("bulk relations: {}".format(self.bulk_relations_in_alg))
 
-        if logger.level <= 10:
-            non_long_edge_generators = list(filter(lambda gen : gen[0] != 'A',self.gens_dict.keys()))
-            non_long_edge_lattice = Matrix([self.gens_dict[gen] for gen in non_long_edge_generators]).row_module().intersection(self.invariant_sublattice)
 
-            logger.debug("Full lattice rank: {0}".format(len(self.gens_dict)))
-            logger.debug("T-invariant lattice is rank: {0}".format(self.invariant_sublattice.rank()))
+        self.partial_elimination_ideal = self.H.ideal(self.inverse_relations+self.bulk_relations_in_alg).elimination_ideal(self.dummy_gens)
+        logger.debug("eliminated {0} : {1}".format(self.dummy_gens,self.partial_elimination_ideal))
+
+
+        
+        if self.quotient_basis.det() != 1:
+            logger.warning("Quotient basis matrix should have determinent 1. Det: {}".format(self.quotient_basis.det()))
+
+
+        
 
         quotient_ring = LaurentPolynomialRing(QQ,
                                               ['qrt2','M','L']
@@ -1543,17 +1552,11 @@ class QuantumAPolynomial:
         #quotient_ring.inject_variables()
         self.polynomial_ring=polynomial_ring
 
-        change_of_basis_matrix = quotient_basis.inverse()
+        change_of_basis_matrix = self.quotient_basis.inverse()
 
-        # make the relations matrix for the quotient
-        quotient_omega = Matrix([
-            [(Matrix(v.lift())*self.omega_with_q*Matrix(w.lift()).transpose())[0,0] for v in self.quotient_lattice.gens()]
-            for w in self.quotient_lattice.gens()
-            ])
-        self.quotient_omega = quotient_omega
 
-        #logger.debug("quotient_omega is:\n {}".format(quotient_omega))
-        if not quotient_omega.is_skew_symmetric():
+        #logger.debug("quotient_omega is:\n {}".format(self.quotient_omega))
+        if not self.quotient_omega.is_skew_symmetric():
             logger.error("The quotient lattice does not have a skew symmetric bilinear form!")
 
 
@@ -1562,50 +1565,50 @@ class QuantumAPolynomial:
         if self.pi(self.gens_dict['qrt2'])[0] != 1:
             logger.error("The generator qrt2 isn't sent to (1,0,...,0) in the quotient! It's {0}".format(self.pi(self.gens_dict['qrt2'])))
 
-        qrt2 = quotient_ring('qrt2')
+        #qrt2 = quotient_ring('qrt2')
 
 
 
         # include inverses in the crossing relations list
-        classical_crossing_relations = [quotient_ring('w{0}'.format(i-3))*quotient_ring('w{0}i'.format(i-3))-1 for i in range(3,self.quotient_lattice.ngens())]
-        for tt in range(self.knot_comp.num_tetrahedra()):
-            specific_crossing_relation = sum([
-                QuantumAPolynomial.lattice_coord_to_ring_element(change_of_basis_matrix*vector(self.pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
-                    for k,v in monomial.items()},self.gens_dict))),quotient_ring, quotient_omega)
-                        for monomial in generic_crossing_relation
-            ]).subs({polynomial_ring('qrt2'):-1})-1
+        #classical_crossing_relations = [quotient_ring('w{0}'.format(i-3))*quotient_ring('w{0}i'.format(i-3))-1 for i in range(3,self.quotient_lattice.ngens())]
+        #for tt in range(self.knot_comp.num_tetrahedra()):
+            #specific_crossing_relation = sum([
+                #QuantumAPolynomial.lattice_coord_to_ring_element(change_of_basis_matrix*vector(self.pi(QuantumAPolynomial.names_to_lattice_coordinate({k.format(t=tt) : v 
+                    #for k,v in monomial.items()},self.gens_dict))),quotient_ring, self.quotient_omega)
+                        #for monomial in generic_crossing_relation
+            #]).subs({polynomial_ring('qrt2'):-1})-1
 
-            logger.debug("Relation for tetrahedron {0}: {1}".format(tt,specific_crossing_relation))
+            #logger.debug("Relation for tetrahedron {0}: {1}".format(tt,specific_crossing_relation))
 
-            # TODO - change this to avoid using clear_denominator.
+            ## TODO - change this to avoid using clear_denominator.
+            ##classical_crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
             #classical_crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
-            classical_crossing_relations.append(polynomial_ring(QuantumAPolynomial.clear_denominator(specific_crossing_relation)))
             
-        self.classical_crossing_relations = classical_crossing_relations
+        #self.classical_crossing_relations = classical_crossing_relations
 
-        A_poly_candidate = polynomial_ring.ideal(classical_crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*(self.knot_comp.num_tetrahedra()-1):]]).gens()[0]
-        self.A_poly = A_poly_candidate
+        #A_poly_candidate = polynomial_ring.ideal(classical_crossing_relations).elimination_ideal([polynomial_ring(str(g)) for g in polynomial_ring.gens()[-2*(self.knot_comp.num_tetrahedra()-1):]]).gens()[0]
+        #self.A_poly = A_poly_candidate
 
-#        A_poly_candidate = polynomial_ring.ideal(classical_crossing_relations).variety()
-        if A_poly_candidate == 0:
-            logger.warning("We have 0 for the A-polynomial!")
-        else:
-            with open('data/A_crossing/apolys/{}.txt'.format(self.knot), 'r') as file:
-                A_ref_string = file.read()
+##        A_poly_candidate = polynomial_ring.ideal(classical_crossing_relations).variety()
+        #if A_poly_candidate == 0:
+            #logger.warning("We have 0 for the A-polynomial!")
+        #else:
+            #with open('data/A_crossing/apolys/{}.txt'.format(self.knot), 'r') as file:
+                #A_ref_string = file.read()
 
-            A_ref = polynomial_ring(A_ref_string)
-            self.ref_A_poly = A_ref
-            logger.debug("Reference A-poly: {}".format(A_ref))
-            logger.info("A-polynomial for {0}:\t{1}".format(self.knot,str(A_poly_candidate.factor())))
+            #A_ref = polynomial_ring(A_ref_string)
+            #self.ref_A_poly = A_ref
+            #logger.debug("Reference A-poly: {}".format(A_ref))
+            #logger.info("A-polynomial for {0}:\t{1}".format(self.knot,str(A_poly_candidate.factor())))
 
 
 
-            if A_poly_candidate.reduce([A_ref]) == 0:
-                logger.info("Our A-polynomial is divisible by the reference one!")
-            else:
-                if A_poly_candidate.reduce([A_ref.subs({polynomial_ring('L'): polynomial_ring('-L')})]) == 0:
-                    logger.info("After changing L to -L our A-polynomial is divisible by the reference one!")
-                else:
-                    logger.error("Our A-polynomial has a complicated relationship with the reference one: {}".format(self.ref_A_poly))
+            #if A_poly_candidate.reduce([A_ref]) == 0:
+                #logger.info("Our A-polynomial is divisible by the reference one!")
+            #else:
+                #if A_poly_candidate.reduce([A_ref.subs({polynomial_ring('L'): polynomial_ring('-L')})]) == 0:
+                    #logger.info("After changing L to -L our A-polynomial is divisible by the reference one!")
+                #else:
+                    #logger.error("Our A-polynomial has a complicated relationship with the reference one: {}".format(self.ref_A_poly))
 
-        return A_poly_candidate
+        #return A_poly_candidate
