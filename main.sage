@@ -1595,9 +1595,9 @@ class QuantumAPolynomial:
             ])
 
 
-        quantum_A_poly = self.restricted_ideal.elimination_ideal([self.restricted_algebra(restricted_F('Mi')), self.restricted_algebra(restricted_F('Li'))])
-        logger.info("Quantum A-polynomial is in this ideal:\n {}\n".format(quantum_A_poly))
+        self.quantum_A_poly_ideal = self.restricted_ideal.elimination_ideal([self.restricted_algebra(restricted_F('Mi')), self.restricted_algebra(restricted_F('Li'))])
+        logger.info("Quantum A-polynomial is in this ideal:\n {}\n".format(self.quantum_A_poly_ideal))
         logger.info("Compare with the literature classical A-polynomial: {}".format(self.ref_A_poly))
-        logger.debug("Quantum A-poly ideal has {0} generators.".format(quantum_A_poly.ngens()))
+        logger.debug("Quantum A-poly ideal has {0} generators.".format(self.quantum_A_poly_ideal.ngens()))
 
         #TODO - take the classical limit.
