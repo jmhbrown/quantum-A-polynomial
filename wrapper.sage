@@ -11,6 +11,7 @@ parser.add_argument('-o', '--output', help='File where output is written.')
 parser.add_argument('-l', '--log_level', default='info', choices=['debug','info','warning','error','critical'],help='Set the logging level.')
 parser.add_argument('-t', '--timeout', default='30', type=int, help='Set the timeout duration in minutes.')
 parser.add_argument('-r', '--randomize', default=0, type=int, help='Number of times we randomize the triangulation then re-compute.')
+parser.add_argument('-e', '--elimination', action='store_true', help='Do the computationally expensive final elimination step.')
 
 args = parser.parse_args()
 
@@ -34,7 +35,7 @@ for run in options["runs"]:
     alarm(60*(args.timeout)) # set timeout length.
 
 
-    t = QuantumAPolynomial(run['knot'],run['pachner_moves'])
+    t = QuantumAPolynomial(run['knot'],run['pachner_moves'],finish_variable_elimination=args.elimination)
     r = args.randomize
     while r > -1:
         try:

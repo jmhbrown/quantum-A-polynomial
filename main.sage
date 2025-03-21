@@ -1,5 +1,5 @@
 class QuantumAPolynomial:
-    def __init__(self, knot, pachner_moves = [], reverse_orientation=False):
+    def __init__(self, knot, pachner_moves = [], reverse_orientation=False, finish_variable_elimination=False):
         """
         parameters:
         knot str - the knot we're working on. e.g. 4_1, 6_2
@@ -8,6 +8,7 @@ class QuantumAPolynomial:
 
         self.knot = knot
         self.pachner_moves = pachner_moves
+        self.finish_variable_elimination = finish_variable_elimination
 
         self.longitude = None
         self.meridian = None
@@ -28,6 +29,7 @@ class QuantumAPolynomial:
 
         self.weights_matrix = None
         self.invariant_sublattice = None
+
 
         self.A_poly = None
         self.ref_A_poly = None
@@ -124,6 +126,7 @@ class QuantumAPolynomial:
                 logger.warning("The thread relations are not skew-symmetric!")
 
 
+        logger.debug("gens: {}".format(self.gens_dict.keys()))
         # make the relations matrix!
         self.omega_with_q = 1/2*QuantumAPolynomial.get_relations_matrix(self.knot_comp,self.gens_dict,self.weights_dict)
 
@@ -1221,7 +1224,7 @@ class QuantumAPolynomial:
         Parameters:
         coord vector -  This should be in terms of the generators of alg.
             If the (possibily doubled) length is more than the number of generators,
-            then this assumes that the first coordinate is tje q power.
+            then this assumes that the first coordinate is the q power.
         alg algebra - needs product and gens methods
         relations (default: None) - relations matrix for the algebra, if it's not commutative.
         double (default: True) - double the coordinate to deal with inverses
@@ -1412,6 +1415,8 @@ class QuantumAPolynomial:
         # Get the central relations
         QuantumAPolynomial.setup_central_relations(self)
         to_vec = lambda name : QuantumAPolynomial.names_to_lattice_coordinate(name,self.gens_dict)
+        T_monodromy_lattice_coordinate_list = [to_vec(name) for name in self.T_monodromy_variable_names_list]
+        gluing_relation_coordinate_list = [to_vec(name) for name in self.short_edge_gluing_relations_list + self.long_edge_gluing_relations_list]
 
         self.thread_monodromy_list = QuantumAPolynomial.get_thread_monodromy(self)
         self.thread_monomials = matrix([
@@ -1473,11 +1478,14 @@ class QuantumAPolynomial:
         # first thread monodromy, then the other monomial relations, then whatever's needed to fill out the lattice.
         inv_rank = unordered_invariant_sublattice.rank()
         while span(new_basis).rank() < inv_rank:
-            for vec in self.thread_monomials.rows() + invariant_center.basis() + unordered_invariant_sublattice.basis():
+            for vec in self.thread_monomials.rows() + T_monodromy_lattice_coordinate_list + gluing_relation_coordinate_list + invariant_center.basis() + unordered_invariant_sublattice.basis():
             #for vec in self.thread_monomials.rows() + unordered_invariant_sublattice.basis():
                 if strip_q(vec) not in span(new_basis):
                     new_basis.append(strip_q(vec))
 
+        logger.debug("invariant lattice basis: {}".format([QuantumAPolynomial.lattice_coord_to_dict(ee,self.gens_dict) for ee in new_basis]))
+
+        logger.debug("T-monodromies: {}".format(self.T_monodromy_variable_names_list))
         self.invariant_sublattice = unordered_invariant_sublattice.submodule_with_basis(new_basis)
         logger.debug("T-invariant lattice is rank: {0}".format(self.invariant_sublattice.rank()))
 
@@ -1595,9 +1603,11 @@ class QuantumAPolynomial:
             ])
 
 
-        self.quantum_A_poly_ideal = self.restricted_ideal.elimination_ideal([self.restricted_algebra(restricted_F('Mi')), self.restricted_algebra(restricted_F('Li'))])
-        logger.info("Quantum A-polynomial is in this ideal:\n {}\n".format(self.quantum_A_poly_ideal))
-        logger.info("Compare with the literature classical A-polynomial: {}".format(self.ref_A_poly))
-        logger.debug("Quantum A-poly ideal has {0} generators.".format(self.quantum_A_poly_ideal.ngens()))
+        if self.finish_variable_elimination == True:
+            self.quantum_A_poly_ideal = self.restricted_ideal.elimination_ideal([self.restricted_algebra(restricted_F('Mi')), self.restricted_algebra(restricted_F('Li'))])
+            logger.info("Quantum A-polynomial is in this ideal:\n {}\n".format(self.quantum_A_poly_ideal))
+            logger.info("Compare with the literature classical A-polynomial: {}".format(self.ref_A_poly))
+            logger.debug("Quantum A-poly ideal has {0} generators.".format(self.quantum_A_poly_ideal.ngens()))
+        else:
+            logger.info("Skipping final eliminations step.")
 
-        #TODO - take the classical limit.
