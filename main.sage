@@ -1314,6 +1314,11 @@ class QuantumAPolynomial:
             + T_monodromy_variable_names_list
             ])
 
+        tmp_gluing_matrix = matrix([QuantumAPolynomial.names_to_lattice_coordinate(v,self.gens_dict) for v in
+            short_edge_gluing_relations_list
+            + long_edge_gluing_relations_list
+            ])
+        logger.debug("gluing relations matrix rank :{}, dimension: {}".format(tmp_gluing_matrix.rank(), tmp_gluing_matrix.dimensions()))
 
         # list of relations
 
@@ -1556,54 +1561,55 @@ class QuantumAPolynomial:
         logger.debug("bulk relations: {}".format(self.bulk_relations_in_alg))
 
 
-        ## Eliminate the dummy variables, then make a g_algebra out of what's left.
-        self.partial_elimination_ideal = self.H.ideal(self.inverse_relations+self.bulk_relations_in_alg).elimination_ideal(self.dummy_gens)
-        logger.debug("eliminated {0} : {1}".format(self.dummy_gens,self.partial_elimination_ideal.gens()))
-
-        tmp_variables_list = []
-        for g in self.partial_elimination_ideal.gens():
-            for mon in g.monomials():
-                tmp_variables_list += g_alg_mon_variables(mon)
-
-        self.partial_elimination_variables = list(set(tmp_variables_list))
-        self.partial_elimination_variables.sort(reverse=True)
-        logger.debug("variables after partial elimination: {}".format(self.partial_elimination_variables))
-
-        restricted_F = FreeAlgebra(self.H.base(),[str(g) for g in self.partial_elimination_variables])
-
-        # build the relations dictionary for the subalgebra. 
-        restricted_relations = {}
-        tmp_F = self.H.free_algebra()
-        tmp_relations = self.H.relations()
-        import itertools
-        for g2,g1 in itertools.combinations(restricted_F.gens(),2):
-            tmp_RHS = tmp_relations.get(tmp_F(str(g1*g2)),None)
-            if tmp_RHS == None:
-                pass
-            else:
-                new_RHS = restricted_F.base()(str(tmp_RHS.lc())) * restricted_F(str(tmp_RHS.lm()))
-                restricted_relations[g1*g2] = new_RHS
-
-        logger.debug("restricted_relations: {}".format(restricted_relations))
-
-        self.restricted_algebra = restricted_F.g_algebra(restricted_relations)
-        logger.debug("restricted algebra: {}".format(self.restricted_algebra))
-
-        # find the right factors to set the thread relations to:
-        thread_subs_dict = {}
-        for g in self.thread_monomials_in_g_alg:
-            thread_subs_dict[QuantumAPolynomial.restrict_to_subalgebra(g.lm(),self.restricted_algebra)] = self.restricted_algebra.base()(str(g.lc()))^-1
-
-        logger.debug("thread subs dict: {}".format(thread_subs_dict))
-
-        # import the partial elimination ideal into the restricted algebra:
-        self.restricted_ideal = self.restricted_algebra.ideal([
-            QuantumAPolynomial.restrict_to_subalgebra(g,self.restricted_algebra).subs(thread_subs_dict)
-            for g in self.partial_elimination_ideal.gens()
-            ])
-
-
         if self.finish_variable_elimination == True:
+            logger.info("starting variable elimination!")
+            ## Eliminate the dummy variables, then make a g_algebra out of what's left.
+            self.partial_elimination_ideal = self.H.ideal(self.inverse_relations+self.bulk_relations_in_alg).elimination_ideal(self.dummy_gens)
+            logger.debug("eliminated {0} : {1}".format(self.dummy_gens,self.partial_elimination_ideal.gens()))
+
+            tmp_variables_list = []
+            for g in self.partial_elimination_ideal.gens():
+                for mon in g.monomials():
+                    tmp_variables_list += g_alg_mon_variables(mon)
+
+            self.partial_elimination_variables = list(set(tmp_variables_list))
+            self.partial_elimination_variables.sort(reverse=True)
+            logger.debug("variables after partial elimination: {}".format(self.partial_elimination_variables))
+
+            restricted_F = FreeAlgebra(self.H.base(),[str(g) for g in self.partial_elimination_variables])
+
+            # build the relations dictionary for the subalgebra. 
+            restricted_relations = {}
+            tmp_F = self.H.free_algebra()
+            tmp_relations = self.H.relations()
+            import itertools
+            for g2,g1 in itertools.combinations(restricted_F.gens(),2):
+                tmp_RHS = tmp_relations.get(tmp_F(str(g1*g2)),None)
+                if tmp_RHS == None:
+                    pass
+                else:
+                    new_RHS = restricted_F.base()(str(tmp_RHS.lc())) * restricted_F(str(tmp_RHS.lm()))
+                    restricted_relations[g1*g2] = new_RHS
+
+            logger.debug("restricted_relations: {}".format(restricted_relations))
+
+            self.restricted_algebra = restricted_F.g_algebra(restricted_relations)
+            logger.debug("restricted algebra: {}".format(self.restricted_algebra))
+
+            # find the right factors to set the thread relations to:
+            thread_subs_dict = {}
+            for g in self.thread_monomials_in_g_alg:
+                thread_subs_dict[QuantumAPolynomial.restrict_to_subalgebra(g.lm(),self.restricted_algebra)] = self.restricted_algebra.base()(str(g.lc()))^-1
+
+            logger.debug("thread subs dict: {}".format(thread_subs_dict))
+
+            # import the partial elimination ideal into the restricted algebra:
+            self.restricted_ideal = self.restricted_algebra.ideal([
+                QuantumAPolynomial.restrict_to_subalgebra(g,self.restricted_algebra).subs(thread_subs_dict)
+                for g in self.partial_elimination_ideal.gens()
+                ])
+
+
             self.quantum_A_poly_ideal = self.restricted_ideal.elimination_ideal([self.restricted_algebra(restricted_F('Mi')), self.restricted_algebra(restricted_F('Li'))])
             logger.info("Quantum A-polynomial is in this ideal:\n {}\n".format(self.quantum_A_poly_ideal))
             logger.info("Compare with the literature classical A-polynomial: {}".format(self.ref_A_poly))

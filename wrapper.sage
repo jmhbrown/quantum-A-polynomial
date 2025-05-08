@@ -30,7 +30,7 @@ sage.repl.load.load('main.sage',globals())
 
 for run in options["runs"]:
     logger.info("\n\n")
-    logger.info("---------------------------------\n Running: {0}".format(run))
+    logger.info("---------------------------------\n Running: {0}. Options: {1}.".format(run,args))
 
     alarm(60*(args.timeout)) # set timeout length.
 
