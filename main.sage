@@ -9,7 +9,6 @@ class QuantumAPolynomial:
         self.knot = knot
         self.pachner_moves = pachner_moves
         self.finish_variable_elimination = finish_variable_elimination
-        self.print_tex = print_tex
 
         self.longitude = None
         self.meridian = None
@@ -185,6 +184,33 @@ class QuantumAPolynomial:
         else: # its a list or set
             return sum([gens_dict[gen] for gen in names])
         
+    def names_to_str(names,omega,gens_dict):
+        """Converts the dictionary form of a variable to a string"""
+        to_tex = []
+        q_scalar = 2*QuantumAPolynomial.normal_to_lexi_order_scalar(names,omega,gens_dict)
+        names['qrt2'] = names.get('qrt2',0) + q_scalar
+        for name,power in names.items():
+            if power != 0:
+                if name[0] == 'q':
+                    to_tex = ['q^{{{0}/2}}'.format(power)] + to_tex
+                elif name[0] == 'a' or name[0] == 'A':
+                    variable = '{0}_{{{1}}}'.format(name[0],name[1:])
+                    if power == 1:
+                        to_tex.append(variable)
+                    else:
+                        to_tex.append(variable+'^{{{0}}}'.format(power))
+                elif name[0] == 'x':
+                    variable = 'x^{{{0}}}_{{{1}}}'.format(*name[1:].split('_'))
+                    if power == 1:
+                        to_tex.append(variable)
+                    else:
+                        to_tex.append('(' + variable+')^{{{0}}}'.format(power))
+
+        # TODO - this is converting between normal and lex ordering, so it needs a q-power!!
+        #logger.debug("Tex expression: {}".format(' '.join(to_tex)))
+        return ' '.join(to_tex)
+
+
     def lattice_coord_to_dict(coord,gens_dict):
         """
         Converts a lattice coordinate to a dictionary with variable names as keys and powers as values.
@@ -206,6 +232,14 @@ class QuantumAPolynomial:
                 dict_form[gen_name] = power
         
         return dict_form
+
+    def normal_to_lexi_order_scalar(names,omega,gens_dict):
+        coord = QuantumAPolynomial.names_to_lattice_coordinate(names,gens_dict)
+        return (-1)*sum(flatten([
+                [
+                    coord[i]*coord[j]*omega[i,j] for i in range(j)
+                ] for j in range(len(coord))
+            ]))
 
     def lattice_coord_to_ring_element(coord,the_ring,omega):
         """
@@ -1298,7 +1332,7 @@ class QuantumAPolynomial:
         for constraint in short_edge_gluing_relations_list:
             if not (sum([self.gens_dict[edge] for edge in constraint])*self.weights_matrix).is_zero():
                 logger.error("A gluing relation is not T-invariant, or perhaps involves non-existant threads! "+ str(constraint))
-        thread_monodromy_list = QuantumAPolynomial.get_thread_monodromy(self)
+        #thread_monodromy_list = QuantumAPolynomial.get_thread_monodromy(self)
             
 
         self.relations_matrix = matrix([QuantumAPolynomial.names_to_lattice_coordinate(v,self.gens_dict) for v in
@@ -1423,6 +1457,10 @@ class QuantumAPolynomial:
         logger.debug("thread_monodromy_list. These should come in pairs of equal length. \n"+"\n".join([str(relation) for relation in self.thread_monodromy_list]))
 
         self.paired_thread_monodromies = QuantumAPolynomial.find_paired_thread_monodromies(self.thread_monodromy_list)
+        logger.info('TEX thread monodromies: {}'.format([
+            'r_{0} = {1}'.format(ii+1,QuantumAPolynomial.names_to_str(flatten(self.paired_thread_monodromies)[ii],self.omega_with_q,self.gens_dict))
+            for ii in range(len(self.thread_monodromy_list))
+            ]))
         for m1,m2 in self.paired_thread_monodromies:
             if self.omega_with_q*(vector(to_vec(m1))-vector(to_vec(m2))) != 0:
                 logger.warning("Thread monodromy difference isn't central: {}")
@@ -1454,6 +1492,7 @@ class QuantumAPolynomial:
         unordered_meridian['qrt2'] = q_meridian_scaling
         self.meridian =QuantumAPolynomial.names_to_lattice_coordinate(unordered_meridian,self.gens_dict)
         logger.debug("Ordered Meridian: {}".format(self.meridian))
+        logger.debug("TEX Meridian : {}".format(QuantumAPolynomial.names_to_str(unordered_meridian,self.omega_with_q,self.gens_dict)))
         # TODO - what do I want the q-power to be? Probably set it in the g-algebra, not here?
 
         unordered_longitude = QuantumAPolynomial.get_peripheral_curve_monomial(self.knot_comp,self.gens_dict,self.vertices_dict,self.weights_dict,self.weights_matrix,curve='longitude')
@@ -1461,7 +1500,7 @@ class QuantumAPolynomial:
         unordered_longitude['qrt2'] = q_longitude_scaling
         self.longitude = QuantumAPolynomial.names_to_lattice_coordinate(unordered_longitude,self.gens_dict)
         logger.debug("Ordered Longitude: {}".format(self.longitude))
-        # TODO - what do I want the q-power to be? Probably set it in the g-algebra, not here?
+        logger.debug("TEX Longitude: {}".format(QuantumAPolynomial.names_to_str(unordered_longitude,self.omega_with_q,self.gens_dict)))
 
         ## Choose a custom basis for the invariant sublattice
 
@@ -1512,7 +1551,9 @@ class QuantumAPolynomial:
 
         logger.debug("In the quotient: \n qrt2 = {0}\n M = {1} \n L = {2}".format(self.pi(self.gens_dict['qrt2']), self.pi(self.meridian), self.pi(self.longitude)))
         logger.debug("thread monomials in quotient: {}".format([self.pi(v) for v in self.thread_monomials.rows()]))
-
+        lift_and_name = lambda v : QuantumAPolynomial.lattice_coord_to_dict(v.lift(),self.gens_dict)
+        long_edge_filter = lambda elem : reduce(lambda x,y: x or y, map(lambda k : k.count('A') >0, lift_and_name(elem).keys()))
+        logger.debug("TEX Skeletal variables {}".format([QuantumAPolynomial.names_to_str(lift_and_name(g),self.omega_with_q,self.gens_dict) for g in self.quotient_lattice.gens() if long_edge_filter(g)]))
         # make the relations matrix for the quotient
         self.quotient_omega = Matrix([
             [(Matrix(v.lift())*self.omega_with_q*Matrix(w.lift()).transpose())[0,0] for v in self.quotient_lattice.gens()]
