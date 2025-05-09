@@ -55,6 +55,8 @@ class QuantumAPolynomial:
         self.creased_edges = QuantumAPolynomial.get_creased_edges(self.gluing_dict)
         num_creased = len(self.creased_edges)
         logger.debug("Gluing dictionary: {}".format(self.gluing_dict))
+        QuantumAPolynomial.tex_for_gluing_dict(self.gluing_dict)
+
 
         self.gens_dict = QuantumAPolynomial.get_unglued_gens_dict(self.knot_comp)
 
@@ -166,6 +168,16 @@ class QuantumAPolynomial:
             lattice_coord[0] += coeff.degree()/2 # the coeff is in terms of qrt4, qrt4^4 = q
             return lattice_coord
 
+    def tex_for_gluing_dict(gluing_dict):
+        num_tet = len(gluing_dict)/5
+        format_s = lambda s : " & s_{{{}}}".format(s[1:])
+        format_r = lambda r : "\\\\ \\rho_{{{}}}".format(r[1:])
+        list_to_perm_str = lambda l : " &= ({})".format(",".join([str(ii) for ii in l]))
+        
+        build_str = [(format_r(k) if k[0] == 'r' else format_s(k))+list_to_perm_str(v) for k,v in gluing_dict.items()]
+        logger.debug("Gluing: {}".format(''.join(build_str)))
+
+        
 
     def names_to_lattice_coordinate(names,gens_dict):
         """
@@ -1450,12 +1462,6 @@ class QuantumAPolynomial:
         gluing_relation_coordinate_list = [to_vec(name) for name in self.short_edge_gluing_relations_list + self.long_edge_gluing_relations_list]
 
         self.thread_monodromy_list = QuantumAPolynomial.get_thread_monodromy(self)
-        self.thread_monomials = matrix([
-            to_vec(name) for name in self.thread_monodromy_list
-            ])
-
-        logger.debug("thread_monodromy_list. These should come in pairs of equal length. \n"+"\n".join([str(relation) for relation in self.thread_monodromy_list]))
-
         self.paired_thread_monodromies = QuantumAPolynomial.find_paired_thread_monodromies(self.thread_monodromy_list)
         logger.info('TEX thread monodromies: {}'.format([
             'r_{0} = {1}'.format(ii+1,QuantumAPolynomial.names_to_str(flatten(self.paired_thread_monodromies)[ii],self.omega_with_q,self.gens_dict))
@@ -1464,6 +1470,13 @@ class QuantumAPolynomial:
         for m1,m2 in self.paired_thread_monodromies:
             if self.omega_with_q*(vector(to_vec(m1))-vector(to_vec(m2))) != 0:
                 logger.warning("Thread monodromy difference isn't central: {}")
+
+        self.thread_monomials = matrix([
+            to_vec(name) for name in flatten(self.paired_thread_monodromies)
+            ])
+
+        logger.debug("thread_monodromy_list. These should come in pairs of equal length. \n"+"\n".join([str(relation) for relation in self.thread_monodromy_list]))
+
 
         self.monomial_relations = block_matrix([
                 [matrix([to_vec(name) for name in self.thread_monodromy_list])],
