@@ -1386,7 +1386,17 @@ class QuantumAPolynomial:
         doubled_quotient_omega = (quotient_omega[1:,1:]).tensor_product(Matrix([[1,-1],[-1,1]]))
 
         #A = FreeAlgebra(S,2*ngens-1,['M','L']+['x{}'.format(i) for i in range(ngens-3)]+['Mi','Li']+['xi{}'.format(i) for i in range(ngens-3)])
-        A = FreeAlgebra(S,2*ngens-2,['M','Mi','L','Li']+flatten([['x{}'.format(i),'xi{}'.format(i)] for i in range(ngens-3)]))
+        num_skel = self.num_tet -1
+        num_thread_mon = self.num_tet - 1
+        logger.debug("Quotient ngens: {0}, Skeletal variables: {1}, Thread monodromies: {2}".format(ngens,num_skel,num_thread_mon))
+        if num_skel + num_thread_mon + 3 != ngens:
+            logger.error("The generators are not all accounted for in the g algebra! ngens: {0}, we're using: {1}.".format(ngens,num_skel+num_thread_mon+3))
+
+        A = FreeAlgebra(S,2*ngens-2,
+                        ['M','Mi','L','Li']
+                        +flatten([['r{}'.format(i+1),'ri{}'.format(i+1)] for i in range(num_thread_mon)])
+                        +flatten([['Y{}'.format(i+1),'Yi{}'.format(i+1)] for i in range(num_skel)])
+            )
         A_gens_dict  = {A.gen(i) : [0]*(i) + [1] + [0]*(A.ngens()-i-1) for i in range(A.ngens())}
 
         import itertools
@@ -1531,16 +1541,16 @@ class QuantumAPolynomial:
         # remove the q-power before putting vectors in the quotient.
         strip_q = lambda coord: vector([0] + list(coord[1:]))
         unordered_invariant_sublattice = self.weights_matrix.left_kernel()
-        invariant_center = (unordered_invariant_sublattice.basis_matrix()*self.omega_with_q).right_kernel().intersection(unordered_invariant_sublattice)
+        self.invariant_center = (unordered_invariant_sublattice.basis_matrix()*self.omega_with_q).right_kernel().intersection(unordered_invariant_sublattice)
         #logger.debug("invariant lattice: {}".format(unordered_invariant_sublattice))
-        #logger.debug("invariant_center: {}".format(invariant_center))
+        #logger.debug("self.invariant_center: {}".format(self.invariant_center))
 
         new_basis = [self.gens_dict['qrt2'],strip_q(self.meridian),strip_q(self.longitude)] 
 
         # first thread monodromy, then the other monomial relations, then whatever's needed to fill out the lattice.
         inv_rank = unordered_invariant_sublattice.rank()
         while span(new_basis).rank() < inv_rank:
-            for vec in self.thread_monomials.rows() + T_monodromy_lattice_coordinate_list + gluing_relation_coordinate_list + invariant_center.basis() + unordered_invariant_sublattice.basis():
+            for vec in self.thread_monomials.rows() + T_monodromy_lattice_coordinate_list + gluing_relation_coordinate_list + self.invariant_center.basis() + unordered_invariant_sublattice.basis():
             #for vec in self.thread_monomials.rows() + unordered_invariant_sublattice.basis():
                 if strip_q(vec) not in span(new_basis):
                     new_basis.append(strip_q(vec))
@@ -1558,14 +1568,20 @@ class QuantumAPolynomial:
         logger.debug("central_relations rank: {}".format(self.central_relations.rank()))
 
         # Take the quotient!
-        center_of_relations = invariant_center.intersection(self.monomial_relations.row_space())
+        self.center_of_relations_with_q = self.invariant_center.intersection(self.monomial_relations.row_space())
+        self.center_of_relations = self.center_of_relations_with_q.submodule_with_basis([
+            g for g in self.center_of_relations_with_q.gens() if g != self.gens_dict['qrt2']
+            ]
+                                                                                        )
 
-        self.quotient_lattice = self.invariant_sublattice.quotient(center_of_relations)
+        logger.debug("center_of_relations: {}".format(self.center_of_relations))
+
+        self.quotient_lattice = self.invariant_sublattice.quotient(self.center_of_relations)
         self.pi = self.quotient_lattice.coerce_map_from(self.quotient_lattice.V())
         logger.debug("quotient: {}".format(self.quotient_lattice))
-        #logger.debug("intersection's quotient by central relations {}".format(center_of_relations.quotient(self.central_relations.row_space()   )))
-        #logger.debug("center's quotient by central relations: {}".format(invariant_center.quotient(invariant_center.intersection(self.central_relations.row_space()))))
-        #logger.debug("center's quotient by center of all monomial relations: {}".format(invariant_center.quotient(center_of_relations)))
+        #logger.debug("intersection's quotient by central relations {}".format(self.center_of_relations.quotient(self.central_relations.row_space()   )))
+        #logger.debug("center's quotient by central relations: {}".format(self.invariant_center.quotient(self.invariant_center.intersection(self.central_relations.row_space()))))
+        #logger.debug("center's quotient by center of all monomial relations: {}".format(self.invariant_center.quotient(self.center_of_relations)))
 
 
 
@@ -1581,6 +1597,7 @@ class QuantumAPolynomial:
         lift_and_name = lambda v : QuantumAPolynomial.lattice_coord_to_dict(v.lift(),self.gens_dict)
         long_edge_filter = lambda elem : reduce(lambda x,y: x or y, map(lambda k : k.count('A') >0, lift_and_name(elem).keys()))
         logger.info("TEX Skeletal variables {}".format([QuantumAPolynomial.names_to_str(lift_and_name(g),self.omega_with_q,self.gens_dict) for g in self.quotient_lattice.gens() if long_edge_filter(g)]))
+
         logger.debug("TEX All Generators of quotient: {}".format("\n"+"\n".join([QuantumAPolynomial.names_to_str(lift_and_name(g),self.omega_with_q,self.gens_dict) for g in self.quotient_lattice.gens()])))
         # make the relations matrix for the quotient
         self.quotient_omega = Matrix([
@@ -1618,7 +1635,7 @@ class QuantumAPolynomial:
 
 
         self.quotient_basis = matrix([vector(g) for g in self.quotient_lattice.gens()]) 
-        logger.debug("quotient basis:\n{}".format(self.quotient_basis))
+        #logger.debug("quotient basis:\n{}".format(self.quotient_basis))
 
         self.bulk_relations_in_alg = QuantumAPolynomial.get_bulk_relations_in_g_algebra(self)
         logger.info("bulk relations: {}".format(self.bulk_relations_in_alg))
