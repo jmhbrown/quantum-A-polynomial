@@ -201,10 +201,14 @@ class QuantumAPolynomial:
         to_tex = []
         q_scalar = 2*QuantumAPolynomial.normal_to_lexi_order_scalar(names,omega,gens_dict)
         names['qrt2'] = names.get('qrt2',0) + q_scalar
-        for name,power in names.items():
+        # make it print in lex order
+        sorted_name_keys = list(names.keys())
+        sorted_name_keys.sort(key=lambda val : gens_dict.get(val,0),reverse=True)
+        sorted_names = {k:names[k] for k in sorted_name_keys}
+        for name,power in sorted_names.items():
             if power != 0:
                 if name[0] == 'q':
-                    to_tex = ['q^{{{0}/2}}'.format(power)] + to_tex
+                    to_tex = ['q^{{{0}}}'.format(power/2)] + to_tex
                 elif name[0] == 'a' or name[0] == 'A':
                     variable = '{0}_{{{1}}}'.format(name[0],name[1:])
                     if power == 1:
@@ -302,7 +306,7 @@ class QuantumAPolynomial:
         
         get_q_power = lambda c1, c2: -(matrix(c1)*relations*matrix(c2).transpose())[0,0]
         
-        return reduce(lambda c1,c2: get_q_power(c1,c2)*vector(gens_dict['qrt2'])/2+vector(c1)+vector(c2),coords)
+        return reduce(lambda c1,c2: get_q_power(c1,c2)*vector(gens_dict['qrt2'])+vector(c1)+vector(c2),coords)
 
     def product_from_names(*monomials,relations=matrix.identity(3),gens_dict={'qrt2':(2,0,0),'A':(0,1,0),'a':(0,0,1)}):
         """
@@ -938,7 +942,8 @@ class QuantumAPolynomial:
         
         
         intersection_dict = QuantumAPolynomial.get_peripheral_curve_intersection_dict(knot_comp,curve=curve)
-        
+        logger.debug('intersection dict for {0}: {1}'.format(curve,intersection_dict))
+       ##TODO: this doesn't work when our peripheral curve interacts too much with a creased edge. 
         #### First find the threads from the intersection dictionary.
         peripheral_curve_threads = {}
         
@@ -981,7 +986,8 @@ class QuantumAPolynomial:
         logger.debug("{0}: {1}".format(curve,curve_dict))
 
         if curve_weights != dict():
-            logger.error("Curve has non-zero T-weights! {weights}".format(weights=curve_weights))
+            logger.error("The {curve} has non-zero T-weights! {weights}".format(curve=curve,weights=curve_weights))
+
         return curve_dict
     
 
@@ -1463,10 +1469,12 @@ class QuantumAPolynomial:
 
         self.thread_monodromy_list = QuantumAPolynomial.get_thread_monodromy(self)
         self.paired_thread_monodromies = QuantumAPolynomial.find_paired_thread_monodromies(self.thread_monodromy_list)
+
         logger.info('TEX thread monodromies: {}'.format([
             'r_{0} = {1}'.format(ii+1,QuantumAPolynomial.names_to_str(flatten(self.paired_thread_monodromies)[ii],self.omega_with_q,self.gens_dict))
             for ii in range(len(self.thread_monodromy_list))
             ]))
+
         for m1,m2 in self.paired_thread_monodromies:
             if self.omega_with_q*(vector(to_vec(m1))-vector(to_vec(m2))) != 0:
                 logger.warning("Thread monodromy difference isn't central: {}")
@@ -1505,15 +1513,18 @@ class QuantumAPolynomial:
         unordered_meridian['qrt2'] = q_meridian_scaling
         self.meridian =QuantumAPolynomial.names_to_lattice_coordinate(unordered_meridian,self.gens_dict)
         logger.debug("Ordered Meridian: {}".format(self.meridian))
-        logger.debug("TEX Meridian : {}".format(QuantumAPolynomial.names_to_str(unordered_meridian,self.omega_with_q,self.gens_dict)))
-        # TODO - what do I want the q-power to be? Probably set it in the g-algebra, not here?
+        logger.info("TEX Meridian : {}".format(QuantumAPolynomial.names_to_str(
+            QuantumAPolynomial.lattice_coord_to_dict(self.meridian,self.gens_dict),self.omega_with_q,self.gens_dict
+            )))
 
         unordered_longitude = QuantumAPolynomial.get_peripheral_curve_monomial(self.knot_comp,self.gens_dict,self.vertices_dict,self.weights_dict,self.weights_matrix,curve='longitude')
         q_longitude_scaling = sum([-abs(v) for v in unordered_longitude.values()]) + unordered_longitude.get('qrt2',0)
         unordered_longitude['qrt2'] = q_longitude_scaling
         self.longitude = QuantumAPolynomial.names_to_lattice_coordinate(unordered_longitude,self.gens_dict)
         logger.debug("Ordered Longitude: {}".format(self.longitude))
-        logger.debug("TEX Longitude: {}".format(QuantumAPolynomial.names_to_str(unordered_longitude,self.omega_with_q,self.gens_dict)))
+        logger.info("TEX Longitude: {}".format(QuantumAPolynomial.names_to_str(
+            QuantumAPolynomial.lattice_coord_to_dict(self.longitude,self.gens_dict),self.omega_with_q,self.gens_dict
+            )))
 
         ## Choose a custom basis for the invariant sublattice
 
@@ -1535,8 +1546,11 @@ class QuantumAPolynomial:
                     new_basis.append(strip_q(vec))
 
         logger.debug("invariant lattice basis: {}".format([QuantumAPolynomial.lattice_coord_to_dict(ee,self.gens_dict) for ee in new_basis]))
+        for vec in new_basis:
+            if matrix(vec)*self.weights_matrix !=0:
+                logger.warning("Non-invariant basis element: {}".format(QuantumAPolynomial.lattice_coord_to_dict(vec,self.gens_dict)))
 
-        logger.debug("T-monodromies: {}".format(self.T_monodromy_variable_names_list))
+        #logger.debug("T-monodromies: {}".format(self.T_monodromy_variable_names_list))
         self.invariant_sublattice = unordered_invariant_sublattice.submodule_with_basis(new_basis)
         logger.debug("T-invariant lattice is rank: {0}".format(self.invariant_sublattice.rank()))
 
@@ -1566,7 +1580,8 @@ class QuantumAPolynomial:
         logger.debug("thread monomials in quotient: {}".format([self.pi(v) for v in self.thread_monomials.rows()]))
         lift_and_name = lambda v : QuantumAPolynomial.lattice_coord_to_dict(v.lift(),self.gens_dict)
         long_edge_filter = lambda elem : reduce(lambda x,y: x or y, map(lambda k : k.count('A') >0, lift_and_name(elem).keys()))
-        logger.debug("TEX Skeletal variables {}".format([QuantumAPolynomial.names_to_str(lift_and_name(g),self.omega_with_q,self.gens_dict) for g in self.quotient_lattice.gens() if long_edge_filter(g)]))
+        logger.info("TEX Skeletal variables {}".format([QuantumAPolynomial.names_to_str(lift_and_name(g),self.omega_with_q,self.gens_dict) for g in self.quotient_lattice.gens() if long_edge_filter(g)]))
+        logger.debug("TEX All Generators of quotient: {}".format("\n"+"\n".join([QuantumAPolynomial.names_to_str(lift_and_name(g),self.omega_with_q,self.gens_dict) for g in self.quotient_lattice.gens()])))
         # make the relations matrix for the quotient
         self.quotient_omega = Matrix([
             [(Matrix(v.lift())*self.omega_with_q*Matrix(w.lift()).transpose())[0,0] for v in self.quotient_lattice.gens()]
@@ -1606,7 +1621,7 @@ class QuantumAPolynomial:
         logger.debug("quotient basis:\n{}".format(self.quotient_basis))
 
         self.bulk_relations_in_alg = QuantumAPolynomial.get_bulk_relations_in_g_algebra(self)
-        logger.debug("bulk relations: {}".format(self.bulk_relations_in_alg))
+        logger.info("bulk relations: {}".format(self.bulk_relations_in_alg))
 
 
         if self.finish_variable_elimination == True:
