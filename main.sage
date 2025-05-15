@@ -306,7 +306,7 @@ class QuantumAPolynomial:
         
         get_q_power = lambda c1, c2: -(matrix(c1)*relations*matrix(c2).transpose())[0,0]
         
-        return reduce(lambda c1,c2: get_q_power(c1,c2)*vector(gens_dict['qrt2'])+vector(c1)+vector(c2),coords)
+        return reduce(lambda c1,c2: get_q_power(c1,c2)*vector(gens_dict['qrt2'])/2+vector(c1)+vector(c2),coords)
 
     def product_from_names(*monomials,relations=matrix.identity(3),gens_dict={'qrt2':(2,0,0),'A':(0,1,0),'a':(0,0,1)}):
         """
@@ -1598,7 +1598,7 @@ class QuantumAPolynomial:
         long_edge_filter = lambda elem : reduce(lambda x,y: x or y, map(lambda k : k.count('A') >0, lift_and_name(elem).keys()))
         logger.info("TEX Skeletal variables {}".format([QuantumAPolynomial.names_to_str(lift_and_name(g),self.omega_with_q,self.gens_dict) for g in self.quotient_lattice.gens() if long_edge_filter(g)]))
 
-        logger.debug("TEX All Generators of quotient: {}".format("\n"+"\n".join([QuantumAPolynomial.names_to_str(lift_and_name(g),self.omega_with_q,self.gens_dict) for g in self.quotient_lattice.gens()])))
+        logger.info("TEX All Generators of quotient: {}".format("\n"+"\n".join([QuantumAPolynomial.names_to_str(lift_and_name(g),self.omega_with_q,self.gens_dict) for g in self.quotient_lattice.gens()])))
         # make the relations matrix for the quotient
         self.quotient_omega = Matrix([
             [(Matrix(v.lift())*self.omega_with_q*Matrix(w.lift()).transpose())[0,0] for v in self.quotient_lattice.gens()]
@@ -1610,7 +1610,7 @@ class QuantumAPolynomial:
         self.H = QuantumAPolynomial.build_g_algebra(self,self.quotient_omega,q_override_value=None)
         # make qrt2 a usable value. Note that self.qrt2 was already defined and is the specialization
         self.H.base().inject_variables()
-        logger.debug("big g_algebra: {}".format(self.H))
+        logger.info("big g_algebra: {}".format(self.H))
         
         alg_gens = [QuantumAPolynomial.get_alg_element_from_coord(vector(g),self.H,relations=self.quotient_omega) for g in self.quotient_lattice.gens()]
         logger.debug("lattice generators in g algebra: {}".format(alg_gens))
