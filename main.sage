@@ -1402,7 +1402,7 @@ class QuantumAPolynomial:
         import itertools
         relations = {}
         for g2,g1 in itertools.combinations(A_gens_dict.keys(),2):
-            power = (matrix(A_gens_dict[g2])*doubled_quotient_omega*(matrix(A_gens_dict[g1]).transpose()))[0][0]
+            power = 2*(matrix(A_gens_dict[g2])*doubled_quotient_omega*(matrix(A_gens_dict[g1]).transpose()))[0][0]
             if power != 0:
                 relations[g1*g2] = qrt2**int(-power)*g2*g1
 
@@ -1571,8 +1571,7 @@ class QuantumAPolynomial:
         self.center_of_relations_with_q = self.invariant_center.intersection(self.monomial_relations.row_space())
         self.center_of_relations = self.center_of_relations_with_q.submodule_with_basis([
             g for g in self.center_of_relations_with_q.gens() if g != self.gens_dict['qrt2']
-            ]
-                                                                                        )
+            ])
 
         logger.debug("center_of_relations: {}".format(self.center_of_relations))
 
