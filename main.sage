@@ -1631,7 +1631,7 @@ class QuantumAPolynomial:
 
         self.thread_monodromy_variables = set(tmp_thread_variables_list)
         logger.debug("thread_monodromy_variables: {}".format(self.thread_monodromy_variables))
-        self.dummy_gens = [g for g in self.H.gens() if str(g)[0] == 'x' and g not in self.thread_monodromy_variables]
+        self.skeletal_gens = [g for g in self.H.gens() if str(g)[0] == 'Y']
 
 
         self.quotient_basis = matrix([vector(g) for g in self.quotient_lattice.gens()]) 
@@ -1643,9 +1643,9 @@ class QuantumAPolynomial:
 
         if self.finish_variable_elimination == True:
             logger.info("starting variable elimination!")
-            ## Eliminate the dummy variables, then make a g_algebra out of what's left.
-            self.partial_elimination_ideal = self.H.ideal(self.inverse_relations+self.bulk_relations_in_alg).elimination_ideal(self.dummy_gens)
-            logger.debug("eliminated {0} : {1}".format(self.dummy_gens,self.partial_elimination_ideal.gens()))
+            ## Eliminate the skeletal variables, then make a g_algebra out of what's left.
+            self.partial_elimination_ideal = self.H.ideal(self.inverse_relations+self.bulk_relations_in_alg).elimination_ideal(self.skeletal_gens)
+            logger.debug("eliminated {0} : {1}".format(self.skeletal_gens,self.partial_elimination_ideal.gens()))
 
             tmp_variables_list = []
             for g in self.partial_elimination_ideal.gens():
